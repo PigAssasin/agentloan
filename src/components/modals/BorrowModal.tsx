@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseUnits } from "viem";
 import { Modal, OverviewRow } from "../shared/Modal";
 import { TokenIcon }          from "../shared/TokenIcon";
 import LendingPoolABI         from "@/lib/abi-lending-pool.json";
 import { ARC_TESTNET_CONTRACTS } from "../../../config/contracts";
-import { TOKENS, useUserAccountData, useReserveData } from "../../hooks/use-lending-pool";
+import { TOKENS, useUserAccountData, useUserTokenBalances, useReserveData } from "../../hooks/use-lending-pool";
 
 const POOL = ARC_TESTNET_CONTRACTS.LENDING_POOL;
 
@@ -18,15 +18,20 @@ export function BorrowModal({ token: tokenSymbol, onClose }: { token: string; on
   const token        = Object.values(TOKENS).find(t => t.symbol === tokenSymbol);
   const decimals     = token?.decimals ?? 6;
   const tokenAddress = token?.address as `0x${string}` | undefined;
-  const { availableBorrows } = useUserAccountData();
-  const { reserves } = useReserveData();
+  const { availableBorrows, refetch: refetchAccount } = useUserAccountData();
+  const { refetch: refetchBalances } = useUserTokenBalances();
+  const { reserves, refetch: refetchReserves } = useReserveData();
   const r = reserves[tokenSymbol as keyof typeof reserves];
 
   const { writeContract, data: txHash } = useWriteContract();
-  const { isLoading: isPending } = useWaitForTransactionReceipt({
+  const { isLoading: isPending, isSuccess } = useWaitForTransactionReceipt({
     hash: txHash,
-    query: { enabled: !!txHash, onSuccess: () => setDone(true) } as any,
+    query: { enabled: !!txHash } as any,
   });
+
+  useEffect(() => {
+    if (isSuccess) { setDone(true); refetchAccount(); refetchBalances(); refetchReserves(); }
+  }, [isSuccess]);
 
   function handle() {
     const n = parseFloat(amount);

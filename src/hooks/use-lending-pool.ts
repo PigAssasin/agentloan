@@ -35,7 +35,7 @@ export function useUserAccountData() {
     abi: LendingPoolABI,
     functionName: "getUserAccountData",
     args: address ? [address] : undefined,
-    query: { enabled: !!address, refetchInterval: 10_000 },
+    query: { enabled: !!address, refetchInterval: 3_000, refetchOnWindowFocus: true },
   });
 
   const raw = data as {
@@ -91,12 +91,12 @@ export function useUserTokenBalances() {
 
   const { data: supplyData, refetch: refetchSupply } = useReadContracts({
     contracts: supplyContracts,
-    query: { enabled: !!address, refetchInterval: 10_000 },
+    query: { enabled: !!address, refetchInterval: 3_000, refetchOnWindowFocus: true },
   });
 
   const { data: borrowData, refetch: refetchBorrow } = useReadContracts({
     contracts: borrowContracts,
-    query: { enabled: !!address, refetchInterval: 10_000 },
+    query: { enabled: !!address, refetchInterval: 3_000, refetchOnWindowFocus: true },
   });
 
   const refetch = () => { refetchSupply(); refetchBorrow(); };
@@ -132,7 +132,7 @@ export function useReserveData() {
 
   const { data, isLoading, refetch } = useReadContracts({
     contracts,
-    query: { refetchInterval: 15_000 },
+    query: { refetchInterval: 4_000, refetchOnWindowFocus: true },
   });
 
   return {
@@ -178,7 +178,7 @@ export function useWalletBalances() {
 
   const { data, refetch } = useReadContracts({
     contracts,
-    query: { enabled: !!address, refetchInterval: 10_000 },
+    query: { enabled: !!address, refetchInterval: 3_000, refetchOnWindowFocus: true },
   });
 
   return {

@@ -8,7 +8,7 @@ import { TokenIcon }          from "../shared/TokenIcon";
 import LendingPoolABI         from "@/lib/abi-lending-pool.json";
 import MockERC20ABI           from "@/lib/abi-mock-erc20.json";
 import { ARC_TESTNET_CONTRACTS } from "../../../config/contracts";
-import { TOKENS }             from "../../hooks/use-lending-pool";
+import { TOKENS, useUserAccountData, useUserTokenBalances, useWalletBalances, useReserveData } from "../../hooks/use-lending-pool";
 
 const POOL = ARC_TESTNET_CONTRACTS.LENDING_POOL;
 
@@ -19,6 +19,13 @@ export function SupplyModal({ symbol, onClose }: { symbol: string; onClose: () =
   const token        = Object.values(TOKENS).find(t => t.symbol === symbol);
   const decimals     = token?.decimals ?? 6;
   const tokenAddress = token?.address as `0x${string}` | undefined;
+
+  // Refetch all data immediately after tx confirms
+  const { refetch: refetchAccount }  = useUserAccountData();
+  const { refetch: refetchBalances } = useUserTokenBalances();
+  const { refetch: refetchWallet }   = useWalletBalances();
+  const { refetch: refetchReserves } = useReserveData();
+  function refetchAll() { refetchAccount(); refetchBalances(); refetchWallet(); refetchReserves(); }
 
   const { writeContract: runApprove, data: approveTxHash } = useWriteContract();
   const { writeContract: runDeposit, data: depositTxHash } = useWriteContract();
@@ -35,9 +42,9 @@ export function SupplyModal({ symbol, onClose }: { symbol: string; onClose: () =
     }
   }, [approveSuccess]);
 
-  // When deposit confirmed → done
+  // When deposit confirmed → done + immediate refetch
   useEffect(() => {
-    if (depositSuccess) setStep("done");
+    if (depositSuccess) { setStep("done"); refetchAll(); }
   }, [depositSuccess]);
 
   const isPending = approveWaiting || depositWaiting;
