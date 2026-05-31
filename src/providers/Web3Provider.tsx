@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RainbowKitProvider, getDefaultConfig, darkTheme } from "@rainbow-me/rainbowkit";
+import { RainbowKitProvider, getDefaultConfig, lightTheme } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { arcTestnet } from "../../config/networks";
@@ -31,11 +31,11 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
-          theme={darkTheme({
-            accentColor: "rgba(255,255,255,0.1)",
+          theme={lightTheme({
+            accentColor: "#000000",
             accentColorForeground: "#ffffff",
-            borderRadius: "large",
-            overlayBlur: "small",
+            borderRadius: "none",
+            fontStack: "system",
           })}
         >
           {children}
