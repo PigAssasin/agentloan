@@ -40,6 +40,10 @@ contract InterestRateStrategy {
             borrowRate = baseRate + slope1 + (slope2 * excessUtil) / excessRange;
         }
 
+        // H-4 fix: cap at 1000% APR to prevent uint128 overflow in index
+        uint256 MAX_RATE = RAY * 1000 / 100; // 1000%
+        if (borrowRate > MAX_RATE) borrowRate = MAX_RATE;
+
         // Supply rate = borrow rate × utilization (borrowers fund suppliers)
         supplyRate = (borrowRate * util) / RAY;
     }

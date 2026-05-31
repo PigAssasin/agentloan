@@ -69,6 +69,12 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         uint16  liquidationBonus,
         uint256 supplyCap
     ) external onlyOwner {
+        // L-1 fix: zero address check
+        require(token != address(0), "zero token address");
+        // L-3 fix: validate risk parameters
+        require(ltv < liquidationThreshold,  "ltv >= liqThreshold");
+        require(liquidationThreshold < 10_000, "threshold >= 100%");
+        require(liquidationBonus >= 10_000,  "bonus < 100%");
         if (reserves[token].lastUpdateTimestamp != 0) revert ReserveAlreadyInitialized(token);
         DataTypes.ReserveData storage r = reserves[token];
         r.initReserve();
@@ -90,14 +96,14 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         if (amount == 0) revert AmountZero();
         DataTypes.ReserveData storage r = _getReserve(token);
 
-        // Supply cap check uses real units — compute before updating indexes
+        // Update indexes first so cap check uses fresh real value (C-1 fix)
+        r.updateIndexes();
+
         if (r.supplyCap > 0) {
             uint256 realSupplyNow = _realTotal(r.totalScaledSupply, r.liquidityIndex);
             if (realSupplyNow + amount > r.supplyCap)
                 revert SupplyCapExceeded(r.supplyCap, realSupplyNow + amount);
         }
-
-        r.updateIndexes();
 
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
@@ -129,7 +135,8 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         userScaledSupply[token][msg.sender] -= scaledToRemove;
         r.totalScaledSupply -= scaledToRemove;
 
-        // Validate health factor after withdrawal
+        // Update all reserve indexes before health factor check (H-2 fix)
+        _updateAllIndexes();
         (uint256 collUSD, uint256 debtUSD) = _getAccountCollateralAndDebt(msg.sender);
         ValidationLogic.validateHealthFactor(collUSD, debtUSD);
 
@@ -157,7 +164,8 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         userScaledBorrow[token][msg.sender] += scaled;
         r.totalScaledBorrow += scaled;
 
-        // Validate LTV (borrow capacity) post-borrow
+        // Update all reserve indexes before LTV check (H-1 fix)
+        _updateAllIndexes();
         uint256 maxBorrowUSD = _getMaxBorrowUSD(msg.sender);
         uint256 totalDebtUSD = _getTotalDebtUSD(msg.sender);
         if (totalDebtUSD > maxBorrowUSD) revert HealthFactorTooLow(0);
@@ -247,15 +255,17 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         // Liquidator receives collateral — reduce scaled supply
         uint256 collScaledToRemove = (collToSeize * RAY) / collRes.liquidityIndex;
         uint256 borrowerCollScaled = userScaledSupply[collateralToken][borrower];
+        // C-2 fix: cap scaled amount, then recalculate actual tokens to transfer
         if (collScaledToRemove > borrowerCollScaled) collScaledToRemove = borrowerCollScaled;
+        uint256 actualCollTransfer = (collScaledToRemove * collRes.liquidityIndex) / RAY;
         userScaledSupply[collateralToken][borrower] -= collScaledToRemove;
         collRes.totalScaledSupply                   -= collScaledToRemove;
-        IERC20(collateralToken).safeTransfer(msg.sender, collToSeize);
+        IERC20(collateralToken).safeTransfer(msg.sender, actualCollTransfer);
 
         _updateRates(debtToken, debtRes);
         _updateRates(collateralToken, collRes);
 
-        emit Liquidated(borrower, msg.sender, collateralToken, repayAmount, collToSeize);
+        emit Liquidated(borrower, msg.sender, collateralToken, repayAmount, actualCollTransfer);
     }
 
     // ── Views ─────────────────────────────────────────────────────────────
@@ -339,6 +349,13 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         (uint256 borrowRate, uint256 supplyRate) = rateStrategy.calculateRates(realBorrow, realSupply);
         r.currentBorrowRate    = uint128(borrowRate);
         r.currentLiquidityRate = uint128(supplyRate);
+    }
+
+    // H-1/H-2 fix: update all reserve indexes before computing collateral/debt
+    function _updateAllIndexes() internal {
+        for (uint256 i = 0; i < reserveList.length; i++) {
+            reserves[reserveList[i]].updateIndexes();
+        }
     }
 
     function _getAccountCollateralAndDebt(address user)

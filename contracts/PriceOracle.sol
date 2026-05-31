@@ -28,6 +28,8 @@ contract PriceOracle is Ownable {
     constructor() Ownable(msg.sender) {}
 
     function setFeed(address token, address feed) external onlyOwner {
+        // L-2 fix: prevent accidentally removing feeds with zero address
+        require(feed != address(0), "zero feed address");
         feeds[token] = feed;
         emit FeedSet(token, feed);
     }

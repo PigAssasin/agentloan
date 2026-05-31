@@ -23,20 +23,20 @@ export const ARC_TESTNET_CONTRACTS = {
   MULTICALL3:       "0xcA11bde05977b3631167028862bE2a173976CA11",
   CREATE2_FACTORY:  "0x4e59b44847b379578588920cA78FbF26c0B4956C",
 
-  // ── sinX Protocol — Arc Testnet deployment (scaled balances — interest accrues to users) ─
-  LENDING_POOL:          "0xd67cA8a057554d6820952f37244B353A481E93A0" as `0x${string}`,
-  PRICE_ORACLE:          "0xd04272EC72eA0bc2139367E4bD0d14398D539D97" as `0x${string}`,
-  INTEREST_RATE_STRATEGY:"0xFFDb2d4d2Da7a4b0dF4c321E0ec29fB014b4Fe43" as `0x${string}`,
+  // ── sinX Protocol — Arc Testnet deployment (security-audited, scaled balances) ─
+  LENDING_POOL:          "0x5358E0F0128bb87133a0214aAc26684cE73495CD" as `0x${string}`,
+  PRICE_ORACLE:          "0xfac5bf8d41E74f55f41495853cB81D834C48F9f2" as `0x${string}`,
+  INTEREST_RATE_STRATEGY:"0x896F6D0d3c2EFc2729d142EEb5227d39f82B4027" as `0x${string}`,
 
   // Mock testnet tokens — 24h on-chain cooldown per wallet
-  X_USDC:   "0x0B4EF44fB19daB9F674E37c8566E94eAa6A4EB18" as `0x${string}`,
-  X_EURC:   "0x9F1E8F2681E01298309220373E3266192Ac44cB1" as `0x${string}`,
-  X_CLR_BTC:"0xfBE90A8be0BB00DC2A8de1471F8165A8B31A908c" as `0x${string}`,
+  X_USDC:   "0x1185FE79dd4Fc83c1C9B42E456C9E1cD0E7AB86e" as `0x${string}`,
+  X_EURC:   "0xc3BF3eEb0eF4Ef3Bc22994CF09cadb648f201742" as `0x${string}`,
+  X_CLR_BTC:"0xD1dD180F244262e80D53508b9Cf336A87D6f4088" as `0x${string}`,
 
-  // Price feeds — block.timestamp, never stale
-  BTC_FEED:  "0x371eb4D25495ed9Cb60B559Eb6Cd4A285e3b35d9" as `0x${string}`,
-  EUR_FEED:  "0x12066063A3A396196964F64aA79e48FdC141218C" as `0x${string}`,
-  USDC_FEED: "0xE52b1b19Fe2307bF243633Bbc26Af7B32f1cCd6f" as `0x${string}`,
+  // Price feeds — block.timestamp, never stale, owner-protected
+  BTC_FEED:  "0x5f6E1e0DC2D06FB288C62F28dc57d0ee9c6332E2" as `0x${string}`,
+  EUR_FEED:  "0xAF293fe9315Cf8f24d218E9A4B9cbF0e1935edfe" as `0x${string}`,
+  USDC_FEED: "0x6372a452dc2303386E7ae74bc990d7dca05Fd33c" as `0x${string}`,
 } as const;
 
 export const TOKEN_DECIMALS = {
