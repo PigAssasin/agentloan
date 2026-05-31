@@ -1,0 +1,14 @@
+{
+  "name": "arcbank",
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_ARC_RPC": "https://rpc.testnet.arc.network",
+    "NEXT_PUBLIC_LENDING_POOL_ADDRESS": "0x893D0223f63A06CFf83F0e9ef4d58af1Ad2B95fb",
+    "NEXT_PUBLIC_PRICE_ORACLE_ADDRESS": "0x052252c0EEdCb0064D9bD49c94DdfE81Bad6fEA5",
+    "NEXT_PUBLIC_X_USDC_ADDRESS": "0xFa090bd1A524D861542888B6c5e7965dde1F4f35",
+    "NEXT_PUBLIC_X_EURC_ADDRESS": "0x11aC6A7f4c3235e4edda971838640bE9e55aC222",
+    "NEXT_PUBLIC_X_CLR_BTC_ADDRESS": "0x938ae31cc6418acc6730cF1AFFE53E91c143B078"
+  }
+}
