@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseUnits } from "viem";
 import { Modal, OverviewRow } from "../shared/Modal";
@@ -14,7 +14,7 @@ const POOL = ARC_TESTNET_CONTRACTS.LENDING_POOL;
 
 export function RepayModal({ token: tokenSymbol, onClose }: { token: string; onClose: () => void }) {
   const [amount, setAmount] = useState("");
-  const [step, setStep]     = useState<"approve" | "repay" | "done">("approve");
+  const [step, setStep]     = useState<"idle" | "approving" | "repaying" | "done">("idle");
 
   const token        = Object.values(TOKENS).find(t => t.symbol === tokenSymbol);
   const decimals     = token?.decimals ?? 6;
@@ -25,23 +25,20 @@ export function RepayModal({ token: tokenSymbol, onClose }: { token: string; onC
   const { writeContract: runApprove, data: approveTxHash } = useWriteContract();
   const { writeContract: runRepay,   data: repayTxHash   } = useWriteContract();
 
-  const { isLoading: approveWaiting } = useWaitForTransactionReceipt({
-    hash: approveTxHash,
-    query: {
-      enabled: !!approveTxHash,
-      onSuccess: () => {
-        if (!tokenAddress) return;
-        const parsed = parseUnits(amount, decimals);
-        setStep("repay");
-        runRepay({ address: POOL, abi: LendingPoolABI as any, functionName: "repay", args: [tokenAddress, parsed] });
-      },
-    } as any,
-  });
+  const { isSuccess: approveSuccess, isLoading: approveWaiting } = useWaitForTransactionReceipt({ hash: approveTxHash });
+  const { isSuccess: repaySuccess,   isLoading: repayWaiting   } = useWaitForTransactionReceipt({ hash: repayTxHash });
 
-  const { isLoading: repayWaiting } = useWaitForTransactionReceipt({
-    hash: repayTxHash,
-    query: { enabled: !!repayTxHash, onSuccess: () => { setStep("done"); refetch(); } } as any,
-  });
+  useEffect(() => {
+    if (approveSuccess && tokenAddress && amount) {
+      const parsed = parseUnits(amount, decimals);
+      setStep("repaying");
+      runRepay({ address: POOL, abi: LendingPoolABI as any, functionName: "repay", args: [tokenAddress, parsed] });
+    }
+  }, [approveSuccess]);
+
+  useEffect(() => {
+    if (repaySuccess) { setStep("done"); refetch(); }
+  }, [repaySuccess]);
 
   const isPending = approveWaiting || repayWaiting;
 
@@ -49,6 +46,7 @@ export function RepayModal({ token: tokenSymbol, onClose }: { token: string; onC
     const n = parseFloat(amount);
     if (!amount || !isFinite(n) || n <= 0 || !tokenAddress) return;
     const parsed = parseUnits(amount, decimals);
+    setStep("approving");
     runApprove({ address: tokenAddress, abi: MockERC20ABI as any, functionName: "approve", args: [POOL, parsed] });
   }
 
@@ -63,6 +61,8 @@ export function RepayModal({ token: tokenSymbol, onClose }: { token: string; onC
     </Modal>
   );
 
+  const stepLabel = step === "approving" ? "Step 1/2 — Approving token..." : step === "repaying" ? "Step 2/2 — Confirming repay..." : "Step 1: Approve  →  Step 2: Repay";
+
   return (
     <Modal onClose={onClose} title={`Repay ${tokenSymbol}`}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
@@ -73,28 +73,24 @@ export function RepayModal({ token: tokenSymbol, onClose }: { token: string; onC
         </div>
       </div>
       <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999999", marginBottom: 8 }}>Amount</div>
-      <div style={{ display: "flex", gap: 0, marginBottom: 6, border: "3px solid #000000" }}>
+      <div style={{ display: "flex", gap: 0, marginBottom: 8, border: "3px solid #000000" }}>
         <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00"
           style={{ flex: 1, padding: "12px 16px", fontSize: 16, fontFamily: "var(--font-mono)", border: "none", outline: "none", background: "#ffffff", color: "#000000" }} />
         <button onClick={() => setAmount(maxDebt.toFixed(decimals === 8 ? 8 : 6))}
           style={{ padding: "0 20px", background: "#000000", color: "#ffffff", border: "none", borderLeft: "3px solid #000000", fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer" }}>MAX</button>
       </div>
-      <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999", marginBottom: 24 }}>
-        Outstanding debt: {maxDebt.toFixed(2)} {tokenSymbol}
-      </p>
+      <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999", marginBottom: 16 }}>Outstanding debt: {maxDebt.toFixed(2)} {tokenSymbol}</p>
 
-      {step === "repay" && (
-        <div style={{ marginBottom: 16, padding: "10px 14px", border: "2px solid #008000", fontFamily: "var(--font-body)", fontSize: 12, color: "#008000" }}>
-          Approval confirmed. Confirm repay in wallet...
-        </div>
-      )}
+      <div style={{ marginBottom: 20, padding: "10px 14px", border: `2px solid ${step === "repaying" ? "#008000" : "#000000"}`, background: step === "repaying" ? "#f0fff0" : "#f5f5f5", fontFamily: "var(--font-body)", fontSize: 12, color: step === "repaying" ? "#008000" : "#333333" }}>
+        {stepLabel}
+      </div>
 
       <div style={{ borderTop: "2px solid #000000", paddingTop: 16, marginBottom: 24 }}>
         <OverviewRow label="Remaining debt" value={`${Math.max(0, maxDebt - parseFloat(amount || "0")).toFixed(2)} ${tokenSymbol}`} accent />
       </div>
-      <button onClick={handle} disabled={isPending || !amount || step !== "approve"}
-        style={{ width: "100%", padding: "14px 0", background: isPending || !amount ? "#eeeeee" : "#000000", color: isPending || !amount ? "#999999" : "#ffffff", border: `3px solid ${isPending || !amount ? "#999999" : "#000000"}`, fontFamily: "var(--font-body)", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", cursor: isPending || !amount ? "not-allowed" : "pointer" }}>
-        {isPending ? "CONFIRMING..." : `APPROVE & REPAY ${tokenSymbol}`}
+      <button onClick={handle} disabled={isPending || !amount || step !== "idle"}
+        style={{ width: "100%", padding: "14px 0", background: isPending || !amount || step !== "idle" ? "#eeeeee" : "#000000", color: isPending || !amount || step !== "idle" ? "#999999" : "#ffffff", border: `3px solid ${isPending || !amount || step !== "idle" ? "#999999" : "#000000"}`, fontFamily: "var(--font-body)", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", cursor: isPending || !amount || step !== "idle" ? "not-allowed" : "pointer" }}>
+        {step === "approving" ? "APPROVING..." : step === "repaying" ? "REPAYING..." : `APPROVE & REPAY ${tokenSymbol}`}
       </button>
     </Modal>
   );

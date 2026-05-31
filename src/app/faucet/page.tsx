@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
 import { parseUnits } from "viem";
 import { TokenIcon }  from "@/components/shared/TokenIcon";
@@ -38,17 +39,45 @@ const TOKENS = [
 
 function MintButton({ token }: { token: typeof TOKENS[0] }) {
   const { address } = useAccount();
-  const { writeContract, data: txHash, isPending: sending } = useWriteContract();
+  const storageKey = address ? `sinx_faucet_${address}_${token.symbol}` : null;
 
+  function getLastMint(): number {
+    if (!storageKey || typeof window === "undefined") return 0;
+    return parseInt(localStorage.getItem(storageKey) || "0");
+  }
+
+  const [lastMint, setLastMint] = useState<number>(0);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    setLastMint(getLastMint());
+  }, [address]);
+
+  const COOLDOWN = 24 * 60 * 60 * 1000;
+  const elapsed = Date.now() - lastMint;
+  const onCooldown = lastMint > 0 && elapsed < COOLDOWN;
+  const remaining = COOLDOWN - elapsed;
+  const hoursLeft = Math.floor(remaining / 3600000);
+  const minsLeft  = Math.floor((remaining % 3600000) / 60000);
+
+  const { writeContract, data: txHash, isPending: sending } = useWriteContract();
   const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({
     hash: txHash,
     query: { enabled: !!txHash } as any,
   });
 
+  useEffect(() => {
+    if (isSuccess && storageKey) {
+      const now = Date.now();
+      localStorage.setItem(storageKey, now.toString());
+      setLastMint(now);
+    }
+  }, [isSuccess]);
+
   const isPending = sending || confirming;
 
   function handleMint() {
-    if (!address) return;
+    if (!address || onCooldown) return;
     writeContract({
       address:      token.address,
       abi:          MockERC20ABI as any,
@@ -59,13 +88,23 @@ function MintButton({ token }: { token: typeof TOKENS[0] }) {
 
   if (isSuccess) return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ border: "3px solid #008000", padding: "10px 0", background: "#ffffff", color: "#008000", fontFamily: "var(--font-body)", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, textAlign: "center" }}>
+      <div style={{ border: "3px solid #008000", padding: "10px 0", color: "#008000", fontFamily: "var(--font-body)", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, textAlign: "center" }}>
         ✓ MINTED
       </div>
-      <button onClick={handleMint}
-        style={{ width: "100%", padding: "6px 0", border: "2px solid #999999", background: "transparent", color: "#999999", fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", cursor: "pointer" }}>
-        MINT AGAIN
-      </button>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#999999", textAlign: "center" }}>
+        Next mint in {hoursLeft}h {minsLeft}m
+      </div>
+    </div>
+  );
+
+  if (onCooldown && !isSuccess) return (
+    <div>
+      <div style={{ border: "3px solid #999999", padding: "10px 0", color: "#999999", fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", marginBottom: 4 }}>
+        COOLDOWN
+      </div>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#999999", textAlign: "center" }}>
+        {hoursLeft}h {minsLeft}m remaining
+      </div>
     </div>
   );
 
@@ -107,7 +146,7 @@ export default function FaucetPage() {
           LIVE
         </div>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "#333333", margin: 0, lineHeight: 1.5 }}>
-          Tokens are minted on-chain to your wallet. Each call mints 10,000 xUSDC / xEURC or 1 xclrBTC. Connect your wallet to Arc Testnet (Chain ID: 5042002) first.
+          Tokens are minted on-chain to your wallet. Each call mints 10,000 xUSDC / xEURC or 1 xclrBTC. Connect your wallet to Arc Testnet (Chain ID: 5042002) first. 24-hour cooldown per token per wallet.
         </p>
       </div>
 
