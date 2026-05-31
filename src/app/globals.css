@@ -1,0 +1,270 @@
+/* ── RawBlock Design System ─────────────────────────────────
+   Source: https://designmd.ai/chef/rawblock
+   Brutalist · Black + White · Thick borders · Sharp edges
+   ─────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Work+Sans:wght@400;600&family=Space+Mono:wght@400;700&display=swap');
+@import "tailwindcss";
+
+/* ── Design tokens ───────────────────────────────────────── */
+:root {
+  /* Colors */
+  --color-black:            #000000;
+  --color-white:            #FFFFFF;
+  --color-blue:             #0000FF;
+  --color-surface-base:     #FFFFFF;
+  --color-surface-inverted: #000000;
+  --color-success:          #008000;
+  --color-warning:          #FFA500;
+  --color-error:            #FF0000;
+  --color-info:             #0000FF;
+  --color-grey-light:       #EEEEEE;
+  --color-grey-mid:         #999999;
+
+  /* Typography */
+  --font-heading: 'Archivo Black', sans-serif;
+  --font-body:    'Work Sans', sans-serif;
+  --font-mono:    'Space Mono', monospace;
+
+  /* Spacing (base 8px) */
+  --space-1:  8px;
+  --space-2:  16px;
+  --space-3:  24px;
+  --space-4:  32px;
+  --space-5:  40px;
+  --space-6:  48px;
+  --space-8:  64px;
+
+  /* Layout */
+  --page-max-width: 1200px;
+
+  /* Borders */
+  --border-thin:   3px solid #000000;
+  --border-thick:  4px solid #000000;
+  --border-heavy:  5px solid #000000;
+  --border-radius: 0px; /* SHARP EDGES — no radius */
+}
+
+@theme {
+  --font-heading: 'Archivo Black', sans-serif;
+  --font-body:    'Work Sans', sans-serif;
+  --font-mono:    'Space Mono', monospace;
+}
+
+/* ── Reset ───────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background: var(--color-surface-base);
+}
+
+body {
+  background:            var(--color-surface-base);
+  color:                 var(--color-black);
+  font-family:           var(--font-body);
+  font-size:             16px;
+  font-weight:           400;
+  line-height:           1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Typography ──────────────────────────────────────────── */
+h1 { font-family: var(--font-heading); font-size: 64px; font-weight: 400; line-height: 1.1; }
+h2 { font-family: var(--font-heading); font-size: 48px; font-weight: 400; line-height: 1.1; }
+h3 { font-family: var(--font-heading); font-size: 32px; font-weight: 400; line-height: 1.2; }
+h4 { font-family: var(--font-body);    font-size: 22px; font-weight: 600; line-height: 1.3; }
+
+.text-mono   { font-family: var(--font-mono); font-size: 15px; }
+.text-label  { font-family: var(--font-body); font-size: 12px; font-weight: 600;
+               text-transform: uppercase; letter-spacing: 0.08em; }
+.text-small  { font-size: 14px; }
+.text-tiny   { font-size: 12px; }
+
+/* ── Cards ───────────────────────────────────────────────── */
+.card {
+  background:    var(--color-white);
+  border:        var(--border-thick);
+  border-radius: 0;
+  padding:       var(--space-3);
+}
+
+.card-dark {
+  background:    var(--color-black);
+  border:        4px solid var(--color-white);
+  border-radius: 0;
+  padding:       var(--space-3);
+  color:         var(--color-white);
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display:         inline-flex;
+  align-items:     center;
+  justify-content: center;
+  font-family:     var(--font-body);
+  font-size:       14px;
+  font-weight:     600;
+  text-transform:  uppercase;
+  letter-spacing:  0.08em;
+  cursor:          pointer;
+  border-radius:   0;
+  transition:      background 0.1s, color 0.1s;
+  white-space:     nowrap;
+  line-height:     1;
+  padding:         12px 24px;
+}
+
+/* Default: white bg, black border → invert on hover */
+.btn-default {
+  background:  var(--color-white);
+  color:       var(--color-black);
+  border:      var(--border-thick);
+}
+.btn-default:hover  { background: var(--color-black); color: var(--color-white); }
+.btn-default:active { background: var(--color-black); color: var(--color-white); transform: scale(0.98); }
+
+/* Primary: black bg, white text → invert on hover */
+.btn-primary {
+  background: var(--color-black);
+  color:      var(--color-white);
+  border:     4px solid var(--color-black);
+}
+.btn-primary:hover  { background: var(--color-white); color: var(--color-black); }
+.btn-primary:active { transform: scale(0.98); }
+
+/* Inverted (for dark bg): black bg, white border */
+.btn-inverted {
+  background: var(--color-black);
+  color:      var(--color-white);
+  border:     4px solid var(--color-white);
+}
+.btn-inverted:hover  { background: var(--color-white); color: var(--color-black); }
+
+.btn-sm { font-size: 12px; padding: 8px 16px; }
+.btn-lg { font-size: 16px; padding: 16px 32px; }
+
+.btn:disabled { border-color: var(--color-grey-mid); background: var(--color-grey-light); color: var(--color-grey-mid); cursor: not-allowed; }
+
+/* ── Inputs ──────────────────────────────────────────────── */
+.input {
+  width:        100%;
+  font-family:  var(--font-body);
+  font-size:    16px;
+  font-weight:  400;
+  background:   var(--color-white);
+  color:        var(--color-black);
+  border:       var(--border-thin);
+  border-radius: 0;
+  padding:      12px 16px;
+  outline:      none;
+  transition:   background 0.1s, color 0.1s, border-color 0.1s;
+}
+.input:focus        { background: var(--color-black); color: var(--color-white); border-color: var(--color-black); }
+.input::placeholder { color: var(--color-grey-mid); }
+.input::-webkit-outer-spin-button,
+.input::-webkit-inner-spin-button { -webkit-appearance: none; }
+input[type=number]  { -moz-appearance: textfield; }
+
+/* Input on dark bg */
+.input-dark {
+  background:   var(--color-black);
+  color:        var(--color-white);
+  border:       3px solid var(--color-white);
+  border-radius: 0;
+}
+.input-dark:focus       { background: var(--color-white); color: var(--color-black); }
+.input-dark::placeholder { color: var(--color-grey-mid); }
+
+/* ── Table ───────────────────────────────────────────────── */
+.rawblock-table {
+  width:           100%;
+  border-collapse: collapse;
+  border:          var(--border-thick);
+  background:      var(--color-white);
+}
+.rawblock-table th,
+.rawblock-table td {
+  border:  2px solid var(--color-black);
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+}
+.rawblock-table th {
+  background:     var(--color-black);
+  color:          var(--color-white);
+  font-family:    var(--font-body);
+  font-weight:    600;
+  font-size:      12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.rawblock-table tr:nth-child(even) td { background: var(--color-grey-light); }
+.rawblock-table tr:hover td           { background: var(--color-black); color: var(--color-white); }
+
+/* ── Table row (generic grid row) ───────────────────────── */
+.table-row {
+  display:       grid;
+  align-items:   center;
+  padding:       var(--space-2) 0;
+  border-bottom: 2px solid var(--color-black);
+}
+.table-row:last-child { border-bottom: none; }
+.table-row:hover      { background: var(--color-black); color: var(--color-white); }
+
+/* ── Progress bar ────────────────────────────────────────── */
+.progress-track { height: 4px; background: var(--color-grey-light); border: 1px solid var(--color-black); }
+.progress-fill  { height: 100%; transition: width 0.4s ease; }
+
+/* ── Utility colors ──────────────────────────────────────── */
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-error   { color: var(--color-error);   }
+.text-muted   { color: var(--color-grey-mid); }
+.text-white   { color: var(--color-white); }
+.text-mono    { font-family: var(--font-mono); }
+
+/* ── Section / page wrappers ─────────────────────────────── */
+.page-content  { position: relative; z-index: 1; }
+.page-section  { max-width: var(--page-max-width); margin: 0 auto; padding: var(--space-4) var(--space-3); }
+
+/* ── Badge ───────────────────────────────────────────────── */
+.badge {
+  display:        inline-flex;
+  padding:        4px 10px;
+  font-family:    var(--font-body);
+  font-size:      11px;
+  font-weight:    600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border:         2px solid var(--color-black);
+  background:     var(--color-white);
+  color:          var(--color-black);
+}
+.badge-success { border-color: var(--color-success); color: var(--color-success); }
+.badge-warning { border-color: var(--color-warning); color: var(--color-warning); }
+.badge-error   { border-color: var(--color-error);   color: var(--color-error);   }
+.badge-inverted { background: var(--color-black); color: var(--color-white); }
+
+/* ── Divider ─────────────────────────────────────────────── */
+.divider { height: 3px; background: var(--color-black); }
+
+/* ── Legacy aliases (keep components working) ────────────── */
+.glass       { background: var(--color-white); border: var(--border-thick); border-radius: 0; }
+.glass-modal { background: var(--color-white); border: var(--border-thick); border-radius: 0; }
+.label       { font-family: var(--font-body); font-size: 11px; font-weight: 600;
+               text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-grey-mid); }
+.btn-ghost   { background: var(--color-white); color: var(--color-black); border: 3px solid var(--color-black); border-radius: 0; padding: 8px 16px; font-family: var(--font-body); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; }
+.btn-ghost:hover { background: var(--color-black); color: var(--color-white); }
+.btn-ghost:disabled { border-color: var(--color-grey-mid); color: var(--color-grey-mid); cursor: not-allowed; }
+.btn-filled  { background: var(--color-black); color: var(--color-white); border: 3px solid var(--color-black); border-radius: 0; padding: 8px 16px; font-family: var(--font-body); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; }
+.btn-filled:hover { background: var(--color-white); color: var(--color-black); }
+.btn-primary { background: var(--color-black); color: var(--color-white); border: 4px solid var(--color-black); border-radius: 0; padding: 13px 28px; font-family: var(--font-body); font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; width: 100%; }
+.btn-primary:hover { background: var(--color-white); color: var(--color-black); }
+.btn-primary:disabled { border-color: var(--color-grey-mid); background: var(--color-grey-light); color: var(--color-grey-mid); cursor: not-allowed; }
+.btn-sm      { font-size: 11px !important; padding: 7px 14px !important; }
+.text-mint   { color: var(--color-success); }
+.text-amber  { color: var(--color-warning); }
+.text-red    { color: var(--color-error); }
+.gradient-bar { background: var(--color-black); height: 4px; }

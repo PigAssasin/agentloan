@@ -1,0 +1,39 @@
+{
+  "name": "arc-lending",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "hardhat test",
+    "coverage": "hardhat coverage"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.2.0",
+    "@rainbow-me/rainbowkit": "^2.2.4",
+    "@tanstack/react-query": "^5.62.7",
+    "@types/three": "^0.184.1",
+    "next": "15.3.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "^0.184.0",
+    "viem": "^2.23.10",
+    "wagmi": "^2.14.16"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-viem": "^2.0.6",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^16.4.7",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.2",
+    "hardhat": "^2.22.17",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
