@@ -72,22 +72,31 @@ async function main() {
 
   // ── 6. Seed initial pool liquidity ───────────────────────────────
   console.log("\nSeeding pool with initial liquidity...");
-  const USDC_SEED   = ethers.parseUnits("1000000", 6);  // 1M xUSDC
-  const EURC_SEED   = ethers.parseUnits("500000",  6);  // 500k xEURC
-  const BTC_SEED    = ethers.parseUnits("20",       8);  // 20 xclrBTC
+  const USDC_SEED   = ethers.parseUnits("500000", 6);  // 500k xUSDC
+  const EURC_SEED   = ethers.parseUnits("200000", 6);  // 200k xEURC
+  const BTC_SEED    = ethers.parseUnits("10",     8);  // 10 xclrBTC
 
-  await xUSDC.ownerMint(deployer.address, USDC_SEED);
-  await xEURC.ownerMint(deployer.address, EURC_SEED);
-  await xclrBTC.ownerMint(deployer.address, BTC_SEED);
+  // Mint to deployer — connect explicitly for safety
+  await xUSDC.connect(deployer).ownerMint(deployer.address, USDC_SEED);
+  console.log("  Minted xUSDC:", ethers.formatUnits(await xUSDC.balanceOf(deployer.address), 6));
+  await xEURC.connect(deployer).ownerMint(deployer.address, EURC_SEED);
+  console.log("  Minted xEURC:", ethers.formatUnits(await xEURC.balanceOf(deployer.address), 6));
+  await xclrBTC.connect(deployer).ownerMint(deployer.address, BTC_SEED);
+  console.log("  Minted xclrBTC:", ethers.formatUnits(await xclrBTC.balanceOf(deployer.address), 8));
 
-  await xUSDC.approve(poolAddr, USDC_SEED);
-  await xEURC.approve(poolAddr, EURC_SEED);
-  await xclrBTC.approve(poolAddr, BTC_SEED);
+  // Approve pool — explicit signer
+  await xUSDC.connect(deployer).approve(poolAddr, USDC_SEED);
+  await xEURC.connect(deployer).approve(poolAddr, EURC_SEED);
+  await xclrBTC.connect(deployer).approve(poolAddr, BTC_SEED);
+  console.log("  Approvals done");
 
-  await pool.deposit(await xUSDC.getAddress(),   USDC_SEED);
-  await pool.deposit(await xEURC.getAddress(),   EURC_SEED);
-  await pool.deposit(await xclrBTC.getAddress(), BTC_SEED);
-  console.log("  Pool seeded: 1M xUSDC, 500k xEURC, 20 xclrBTC");
+  // Deposit into pool — explicit signer
+  await pool.connect(deployer).deposit(await xUSDC.getAddress(),   USDC_SEED);
+  console.log("  xUSDC deposited");
+  await pool.connect(deployer).deposit(await xEURC.getAddress(),   EURC_SEED);
+  console.log("  xEURC deposited");
+  await pool.connect(deployer).deposit(await xclrBTC.getAddress(), BTC_SEED);
+  console.log("  Pool seeded: 500k xUSDC, 200k xEURC, 10 xclrBTC");
 
   // ── 7. Write addresses to config ─────────────────────────────────
   const addresses = {
