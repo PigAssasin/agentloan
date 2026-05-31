@@ -15,10 +15,13 @@ if (typeof window === "undefined") {
   };
 }
 
+// I-1: WalletConnect requires a real project ID from cloud.walletconnect.com
+// Without it, WalletConnect connections are disabled (MetaMask injected wallet still works)
+const wcProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || undefined;
+
 const wagmiConfig = getDefaultConfig({
   appName: "sinX",
-  // Set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID in .env.local before production deploy
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "arc-lending-dev",
+  projectId: wcProjectId ?? "00000000000000000000000000000000", // WC disabled if not set
   chains: [arcTestnet],
   ssr: true,
 });

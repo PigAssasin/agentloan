@@ -48,13 +48,11 @@ export function useUserAccountData() {
   });
 
   const raw = data as {
-    totalCollateralUSD: bigint;
+    totalCollateralUSD:    bigint;
     totalRawCollateralUSD: bigint;
-    totalDebtUSD: bigint;
-    availableBorrowsUSD: bigint;
-    healthFactor: bigint;
-    weightedLtv: bigint;
-    weightedLiquidationThreshold: bigint;
+    totalDebtUSD:          bigint;
+    availableBorrowsUSD:   bigint;
+    healthFactor:          bigint;
   } | undefined;
 
   const MAX_HF = 2n ** 256n - 1n;
@@ -163,7 +161,8 @@ export function useReserveData() {
       tokenList.map((t, i) => {
         const r         = data?.[i]?.result as any;
         const priceWAD  = (priceData?.[i]?.result as bigint) ?? 0n;
-        const priceUSD  = priceWAD > 0n ? Number(formatUnits(priceWAD, 18)) : 1; // fallback $1
+        // I-2: null price when oracle unavailable — prevents misleading $1 fallback for BTC
+        const priceUSD: number | null = priceWAD > 0n ? Number(formatUnits(priceWAD, 18)) : null;
 
         // Compute real totals from scaled × index / RAY
         const rayBig = 10n ** 27n;
@@ -175,8 +174,8 @@ export function useReserveData() {
         const realBorrowRaw = scaledBorrow > 0n ? (scaledBorrow * borrowIndex)    / rayBig : 0n;
         const totalSupplied    = r ? Number(formatUnits(realSupplyRaw, t.decimals)) : 0;
         const totalBorrowed    = r ? Number(formatUnits(realBorrowRaw, t.decimals)) : 0;
-        const totalSuppliedUSD = totalSupplied * priceUSD;
-        const totalBorrowedUSD = totalBorrowed * priceUSD;
+        const totalSuppliedUSD = priceUSD !== null ? totalSupplied * priceUSD : null;
+        const totalBorrowedUSD = priceUSD !== null ? totalBorrowed * priceUSD : null;
         const utilization      = totalSupplied > 0 ? (totalBorrowed / totalSupplied) * 100 : 0;
         const supplyApy        = r ? rayToApy(BigInt(r.currentLiquidityRate)) : 0;
         const borrowApy        = r ? rayToApy(BigInt(r.currentBorrowRate))    : 0;
@@ -184,14 +183,17 @@ export function useReserveData() {
         return [t.symbol, {
           totalSupplied, totalBorrowed,
           totalSuppliedUSD, totalBorrowedUSD,
-          utilization, supplyApy, borrowApy, priceUSD,
+          utilization, supplyApy, borrowApy,
+          priceUSD,
+          priceAvailable: priceUSD !== null,
         }];
       })
     ) as Record<TokenSymbol, {
-      totalSupplied: number;    totalBorrowed: number;
-      totalSuppliedUSD: number; totalBorrowedUSD: number;
-      utilization: number;      supplyApy: number;
-      borrowApy: number;        priceUSD: number;
+      totalSupplied: number;         totalBorrowed: number;
+      totalSuppliedUSD: number|null; totalBorrowedUSD: number|null;
+      utilization: number;           supplyApy: number;
+      borrowApy: number;             priceUSD: number|null;
+      priceAvailable: boolean;
     }>,
     isLoading,
     refetch,

@@ -23,20 +23,20 @@ export const ARC_TESTNET_CONTRACTS = {
   MULTICALL3:       "0xcA11bde05977b3631167028862bE2a173976CA11",
   CREATE2_FACTORY:  "0x4e59b44847b379578588920cA78FbF26c0B4956C",
 
-  // ── sinX Protocol — Arc Testnet deployment (security-audited, scaled balances) ─
-  LENDING_POOL:          "0x5358E0F0128bb87133a0214aAc26684cE73495CD" as `0x${string}`,
-  PRICE_ORACLE:          "0xfac5bf8d41E74f55f41495853cB81D834C48F9f2" as `0x${string}`,
-  INTEREST_RATE_STRATEGY:"0x896F6D0d3c2EFc2729d142EEb5227d39f82B4027" as `0x${string}`,
+  // ── sinX Protocol — Arc Testnet (fully audited, scaled balances, configurable risk params) ─
+  LENDING_POOL:          "0x893D0223f63A06CFf83F0e9ef4d58af1Ad2B95fb" as `0x${string}`,
+  PRICE_ORACLE:          "0x052252c0EEdCb0064D9bD49c94DdfE81Bad6fEA5" as `0x${string}`,
+  INTEREST_RATE_STRATEGY:"0x22B2A153F7694e49096ef91D627a80c5b6602Ffd" as `0x${string}`,
 
   // Mock testnet tokens — 24h on-chain cooldown per wallet
-  X_USDC:   "0x1185FE79dd4Fc83c1C9B42E456C9E1cD0E7AB86e" as `0x${string}`,
-  X_EURC:   "0xc3BF3eEb0eF4Ef3Bc22994CF09cadb648f201742" as `0x${string}`,
-  X_CLR_BTC:"0xD1dD180F244262e80D53508b9Cf336A87D6f4088" as `0x${string}`,
+  X_USDC:   "0xFa090bd1A524D861542888B6c5e7965dde1F4f35" as `0x${string}`,
+  X_EURC:   "0x11aC6A7f4c3235e4edda971838640bE9e55aC222" as `0x${string}`,
+  X_CLR_BTC:"0x938ae31cc6418acc6730cF1AFFE53E91c143B078" as `0x${string}`,
 
   // Price feeds — block.timestamp, never stale, owner-protected
-  BTC_FEED:  "0x5f6E1e0DC2D06FB288C62F28dc57d0ee9c6332E2" as `0x${string}`,
-  EUR_FEED:  "0xAF293fe9315Cf8f24d218E9A4B9cbF0e1935edfe" as `0x${string}`,
-  USDC_FEED: "0x6372a452dc2303386E7ae74bc990d7dca05Fd33c" as `0x${string}`,
+  BTC_FEED:  "0x310E587E79a10277A72f98a24Ae37eFA73A2c81a" as `0x${string}`,
+  EUR_FEED:  "0x23bBf59113999f1ef7B3168577B837BAb60bcd7F" as `0x${string}`,
+  USDC_FEED: "0x0D2f1783498b699437CAac6077745feAc55350C4" as `0x${string}`,
 } as const;
 
 export const TOKEN_DECIMALS = {

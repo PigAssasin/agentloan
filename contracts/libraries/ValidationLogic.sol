@@ -4,12 +4,8 @@ pragma solidity ^0.8.20;
 library ValidationLogic {
     uint256 internal constant WAD = 1e18;
 
+    // Only errors actually used by this library (I-4: removed duplicates already in LendingPool)
     error HealthFactorBelowOne(uint256 healthFactor);
-    error AmountZero();
-    error InsufficientBalance(uint256 available, uint256 requested);
-    error InsufficientLiquidity(uint256 available, uint256 requested);
-    error BorrowingNotEnabled(address token);
-    error SupplyCapExceeded(uint256 cap, uint256 newTotal);
 
     function calculateHealthFactor(
         uint256 totalCollateralUSD,

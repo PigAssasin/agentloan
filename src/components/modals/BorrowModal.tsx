@@ -35,7 +35,11 @@ export function BorrowModal({ token: tokenSymbol, onClose }: { token: string; on
 
   function handle() {
     const n = parseFloat(amount);
-    if (!amount || !isFinite(n) || n <= 0 || n > availableBorrows || !tokenAddress) return;
+    if (!amount || !isFinite(n) || n <= 0 || !tokenAddress) return;
+    // L-5 fix: compare USD value (not token amount) against availableBorrows (USD)
+    const priceUSD = r?.priceUSD ?? 1;
+    const amountUSD = n * priceUSD;
+    if (amountUSD > availableBorrows) return;
     writeContract({ address: POOL, abi: LendingPoolABI as any, functionName: "borrow", args: [tokenAddress, parseUnits(amount, decimals)] });
   }
 
@@ -66,6 +70,11 @@ export function BorrowModal({ token: tokenSymbol, onClose }: { token: string; on
         <button onClick={() => setAmount(availableBorrows.toFixed(2))}
           style={{ padding: "0 20px", background: "#000000", color: "#ffffff", border: "none", borderLeft: "3px solid #000000", fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer" }}>MAX</button>
       </div>
+      {token?.borrowable && tokenSymbol === "xUSDC" && (
+        <p style={{ fontFamily: "var(--font-body)", fontSize: 11, color: "#FFA500", marginBottom: 8, padding: "6px 10px", border: "1px solid #FFA500" }}>
+          ⚠ Borrowing an asset you also supply creates recursive leverage risk. Use with caution.
+        </p>
+      )}
       <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999", marginBottom: 24 }}>
         Available: ${availableBorrows.toFixed(2)} · APY: {r ? `${r.borrowApy.toFixed(2)}%` : "—"}
       </p>

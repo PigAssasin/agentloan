@@ -349,6 +349,43 @@
         "internalType": "address",
         "name": "token",
         "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "ltv",
+        "type": "uint16"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "liquidationThreshold",
+        "type": "uint16"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "liquidationBonus",
+        "type": "uint16"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "supplyCap",
+        "type": "uint256"
+      }
+    ],
+    "name": "ReserveConfigUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
       }
     ],
     "name": "ReserveInitialized",
@@ -549,16 +586,6 @@
           {
             "internalType": "uint256",
             "name": "healthFactor",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "weightedLtv",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "weightedLiquidationThreshold",
             "type": "uint256"
           }
         ],
@@ -887,6 +914,39 @@
   {
     "inputs": [],
     "name": "unpause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint16",
+        "name": "ltv",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "liquidationThreshold",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "liquidationBonus",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint256",
+        "name": "supplyCap",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateReserveConfig",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

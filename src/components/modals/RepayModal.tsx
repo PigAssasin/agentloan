@@ -24,6 +24,7 @@ export function RepayModal({ token: tokenSymbol, onClose }: { token: string; onC
 
   const { writeContract: runApprove, data: approveTxHash } = useWriteContract();
   const { writeContract: runRepay,   data: repayTxHash   } = useWriteContract();
+  const { writeContract: runClearAllowance } = useWriteContract();
 
   const { isSuccess: approveSuccess, isLoading: approveWaiting } = useWaitForTransactionReceipt({ hash: approveTxHash });
   const { isSuccess: repaySuccess,   isLoading: repayWaiting   } = useWaitForTransactionReceipt({ hash: repayTxHash });
@@ -37,7 +38,14 @@ export function RepayModal({ token: tokenSymbol, onClose }: { token: string; onC
   }, [approveSuccess]);
 
   useEffect(() => {
-    if (repaySuccess) { setStep("done"); refetch(); }
+    if (repaySuccess) {
+      setStep("done");
+      refetch();
+      // M-6: clear residual ERC20 allowance after repay
+      if (tokenAddress) {
+        runClearAllowance({ address: tokenAddress, abi: MockERC20ABI as any, functionName: "approve", args: [POOL, 0n] });
+      }
+    }
   }, [repaySuccess]);
 
   const isPending = approveWaiting || repayWaiting;

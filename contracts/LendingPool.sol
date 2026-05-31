@@ -88,6 +88,28 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         emit ReserveInitialized(token);
     }
 
+    // I-5: allow owner to update risk parameters post-deployment
+    event ReserveConfigUpdated(address indexed token, uint16 ltv, uint16 liquidationThreshold, uint16 liquidationBonus, uint256 supplyCap);
+
+    function updateReserveConfig(
+        address token,
+        uint16  ltv,
+        uint16  liquidationThreshold,
+        uint16  liquidationBonus,
+        uint256 supplyCap
+    ) external onlyOwner {
+        if (reserves[token].lastUpdateTimestamp == 0) revert ReserveNotInitialized(token);
+        require(ltv < liquidationThreshold,    "ltv >= liqThreshold");
+        require(liquidationThreshold < 10_000, "threshold >= 100%");
+        require(liquidationBonus >= 10_000,    "bonus < 100%");
+        DataTypes.ReserveData storage r = reserves[token];
+        r.ltv                  = ltv;
+        r.liquidationThreshold = liquidationThreshold;
+        r.liquidationBonus     = liquidationBonus;
+        r.supplyCap            = supplyCap;
+        emit ReserveConfigUpdated(token, ltv, liquidationThreshold, liquidationBonus, supplyCap);
+    }
+
     function pause()   external onlyOwner { _pause(); }
     function unpause() external onlyOwner { _unpause(); }
 
@@ -107,6 +129,7 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
 
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
+        // M-4: round DOWN on deposit — protocol retains rounding dust, not user
         uint256 scaled = (amount * RAY) / r.liquidityIndex;
         userScaledSupply[token][msg.sender] += scaled;
         r.totalScaledSupply += scaled;
@@ -131,7 +154,11 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         uint256 liquidity  = realSupply > realBorrow ? realSupply - realBorrow : 0;
         if (amount > liquidity) revert InsufficientLiquidity(liquidity, amount);
 
-        uint256 scaledToRemove = (amount * RAY) / r.liquidityIndex;
+        // M-4: round UP on withdraw — remove slightly more scaled, favors protocol
+        uint256 scaledToRemove = (amount * RAY + r.liquidityIndex - 1) / r.liquidityIndex;
+        // Cap at actual balance to prevent underflow from rounding
+        uint256 userScaled = userScaledSupply[token][msg.sender];
+        if (scaledToRemove > userScaled) scaledToRemove = userScaled;
         userScaledSupply[token][msg.sender] -= scaledToRemove;
         r.totalScaledSupply -= scaledToRemove;
 

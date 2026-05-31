@@ -44,6 +44,7 @@ export default function MarketsPage() {
 
   const totalSupplied = tokenList.reduce((a, t) => a + (reserves[t.symbol]?.totalSuppliedUSD ?? 0), 0);
   const totalBorrowed = tokenList.reduce((a, t) => a + (reserves[t.symbol]?.totalBorrowedUSD ?? 0), 0);
+  const priceError    = tokenList.some(t => reserves[t.symbol] && !reserves[t.symbol].priceAvailable);
 
   return (
     <div style={{ maxWidth: "var(--page-max-width)", margin: "0 auto", padding: "32px 24px" }}>
@@ -113,14 +114,14 @@ export default function MarketsPage() {
                 </div>
                 <div>
                   <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
-                    {fmtUSD(sup)}
+                    {sup !== null ? fmtUSD(sup) : "—"}
                   </div>
                 </div>
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "#008000" }}>
                   {isLoading ? "..." : `${sApy.toFixed(2)}%`}
                 </div>
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
-                  {bor > 0 ? fmtUSD(bor) : "$0.00"}
+                  {bor !== null && bor > 0 ? fmtUSD(bor) : bor === null ? "—" : "$0.00"}
                 </div>
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: bApy > 0 ? "#FFA500" : "#999999" }}>
                   {isLoading ? "..." : bApy > 0 ? `${bApy.toFixed(2)}%` : "N/A"}
