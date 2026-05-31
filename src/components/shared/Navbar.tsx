@@ -69,8 +69,7 @@ export function Navbar() {
         </nav>
 
         <ConnectButton.Custom>
-          {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
-            if (!mounted) return <div style={{ width: 140, height: 40 }} />;
+          {({ account, chain, openAccountModal, openChainModal, openConnectModal }) => {
             if (!account) return (
               <button onClick={openConnectModal} style={btnBlack}>
                 CONNECT WALLET
