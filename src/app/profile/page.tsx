@@ -239,7 +239,7 @@ export default function ProfilePage() {
       </div>
 
       {withdrawSymbol && <WithdrawModal symbol={withdrawSymbol} onClose={() => setWithdraw(null)} />}
-      {showRepay      && <RepayModal onClose={() => setRepay(false)} />}
+      {showRepay      && <RepayModal token="xUSDC" onClose={() => setRepay(false)} />}
     </div>
   );
 }

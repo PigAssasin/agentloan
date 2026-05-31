@@ -13,6 +13,7 @@ export function HeroCanvas() {
     let t = 0;
 
     function resize() {
+      if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       canvas.width  = rect.width  || canvas.offsetWidth  || 600;
       canvas.height = rect.height || canvas.offsetHeight || 320;
@@ -36,6 +37,7 @@ export function HeroCanvas() {
     ];
 
     function draw() {
+      if (!canvas) return;
       const W = canvas.width;
       const H = canvas.height;
       if (W < 10 || H < 10) { raf = requestAnimationFrame(draw); return; }
