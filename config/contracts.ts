@@ -23,20 +23,20 @@ export const ARC_TESTNET_CONTRACTS = {
   MULTICALL3:       "0xcA11bde05977b3631167028862bE2a173976CA11",
   CREATE2_FACTORY:  "0x4e59b44847b379578588920cA78FbF26c0B4956C",
 
-  // ── sinX Protocol — Arc Testnet deployment ────────────────────────────
-  LENDING_POOL:          "0x3F8BA765a3202dAEbab551eEff4F457953FCc5E9" as `0x${string}`,
-  PRICE_ORACLE:          "0x80639D6DcC40ef45fF2B3A94FBdb6C021aB7Bc45" as `0x${string}`,
-  INTEREST_RATE_STRATEGY:"0x5C348E434d593c71301F613a38369EAf1aDaCDE9" as `0x${string}`,
+  // ── sinX Protocol — Arc Testnet deployment (with on-chain faucet cooldown) ─
+  LENDING_POOL:          "0xb26c073e9E6748449f1c308a03E523DC42e36958" as `0x${string}`,
+  PRICE_ORACLE:          "0x5a39248A333e9Bdfff468811636aeF19fc39BcFb" as `0x${string}`,
+  INTEREST_RATE_STRATEGY:"0x0e543078FFf77d34f8238F0625f01203d3d08CFD" as `0x${string}`,
 
-  // Mock testnet tokens (mintable)
-  X_USDC:   "0xF33C81bbA3CC6425a9EfAe70A2352420f2026230" as `0x${string}`,
-  X_EURC:   "0xe35d66f369b529F8D3d008447F2a0Ebb065fE32F" as `0x${string}`,
-  X_CLR_BTC:"0x55BF14097bff153655e390A760F30c04BFd1Cc2B" as `0x${string}`,
+  // Mock testnet tokens — 24h on-chain cooldown per wallet
+  X_USDC:   "0xccF81F1d0d806Ee9e59e994ed9B03723a776F76D" as `0x${string}`,
+  X_EURC:   "0x48D9E6819127570a3fBB0940A47B945856eD125D" as `0x${string}`,
+  X_CLR_BTC:"0x71FCA423dc3A497Cb71C8409529095CBD013d915" as `0x${string}`,
 
-  // Price feeds (MockAggregator on testnet)
-  BTC_FEED:  "0x83960CA07ec5ce18dd9527b72f4d935ccB7bcb1C" as `0x${string}`,
-  EUR_FEED:  "0x8B54dfCEd88216Cfb8663CE5e69076562063773F" as `0x${string}`,
-  USDC_FEED: "0xeF01e0F3F6e7B3C96a2e72529ee5dEf0010942cE" as `0x${string}`,
+  // Price feeds — block.timestamp, never stale
+  BTC_FEED:  "0xBb0eE093926758D51860Be2973C91603E4E2ea0e" as `0x${string}`,
+  EUR_FEED:  "0x2547D28fE4CAe1488E6b21ad255d1298f34E601d" as `0x${string}`,
+  USDC_FEED: "0x2F0E5DA7451a9B1438b842Fa4d80e1863b868F1F" as `0x${string}`,
 } as const;
 
 export const TOKEN_DECIMALS = {

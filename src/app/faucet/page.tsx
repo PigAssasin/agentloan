@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
+import { useEffect, useState } from "react";
+import { useWriteContract, useWaitForTransactionReceipt, useAccount, useReadContract } from "wagmi";
 import { parseUnits } from "viem";
 import { TokenIcon }  from "@/components/shared/TokenIcon";
 import MockERC20ABI   from "@/lib/abi-mock-erc20.json";
@@ -37,28 +37,38 @@ const TOKENS = [
   },
 ];
 
+function fmtTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 function MintButton({ token }: { token: typeof TOKENS[0] }) {
   const { address } = useAccount();
-  const storageKey = address ? `sinx_faucet_${address}_${token.symbol}` : null;
 
-  function getLastMint(): number {
-    if (!storageKey || typeof window === "undefined") return 0;
-    return parseInt(localStorage.getItem(storageKey) || "0");
-  }
+  // Read on-chain cooldown — bypasses localStorage entirely
+  const { data: remainingRaw, refetch: refetchCooldown } = useReadContract({
+    address:      token.address,
+    abi:          MockERC20ABI as any,
+    functionName: "cooldownRemaining",
+    args:         address ? [address] : undefined,
+    query:        { enabled: !!address, refetchInterval: 5_000 },
+  });
 
-  const [lastMint, setLastMint] = useState<number>(0);
+  const remainingSec = Number((remainingRaw as bigint) ?? 0n);
+  const onCooldown   = remainingSec > 0;
 
-  // Load from localStorage on mount
+  // Live countdown timer
+  const [countdown, setCountdown] = useState(remainingSec);
+  useEffect(() => { setCountdown(remainingSec); }, [remainingSec]);
   useEffect(() => {
-    setLastMint(getLastMint());
-  }, [address]);
-
-  const COOLDOWN = 24 * 60 * 60 * 1000;
-  const elapsed = Date.now() - lastMint;
-  const onCooldown = lastMint > 0 && elapsed < COOLDOWN;
-  const remaining = COOLDOWN - elapsed;
-  const hoursLeft = Math.floor(remaining / 3600000);
-  const minsLeft  = Math.floor((remaining % 3600000) / 60000);
+    if (countdown <= 0) return;
+    const id = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(id);
+  }, [countdown]);
 
   const { writeContract, data: txHash, isPending: sending } = useWriteContract();
   const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({
@@ -66,12 +76,9 @@ function MintButton({ token }: { token: typeof TOKENS[0] }) {
     query: { enabled: !!txHash } as any,
   });
 
+  // After mint confirmed → refresh cooldown from chain
   useEffect(() => {
-    if (isSuccess && storageKey) {
-      const now = Date.now();
-      localStorage.setItem(storageKey, now.toString());
-      setLastMint(now);
-    }
+    if (isSuccess) { refetchCooldown(); }
   }, [isSuccess]);
 
   const isPending = sending || confirming;
@@ -86,24 +93,24 @@ function MintButton({ token }: { token: typeof TOKENS[0] }) {
     });
   }
 
-  if (isSuccess) return (
+  if (isSuccess && countdown > 0) return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ border: "3px solid #008000", padding: "10px 0", color: "#008000", fontFamily: "var(--font-body)", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, textAlign: "center" }}>
+      <div style={{ border: "3px solid #008000", padding: "10px 0", color: "#008000", fontFamily: "var(--font-body)", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, textAlign: "center" }}>
         ✓ MINTED
       </div>
       <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#999999", textAlign: "center" }}>
-        Next mint in {hoursLeft}h {minsLeft}m
+        Next in {fmtTime(countdown)}
       </div>
     </div>
   );
 
-  if (onCooldown && !isSuccess) return (
-    <div>
+  if (onCooldown) return (
+    <div style={{ textAlign: "center" }}>
       <div style={{ border: "3px solid #999999", padding: "10px 0", color: "#999999", fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", marginBottom: 4 }}>
         COOLDOWN
       </div>
       <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#999999", textAlign: "center" }}>
-        {hoursLeft}h {minsLeft}m remaining
+        {fmtTime(countdown)} remaining
       </div>
     </div>
   );
@@ -143,10 +150,10 @@ export default function FaucetPage() {
       {/* Notice banner */}
       <div style={{ border: "3px solid #000000", background: "#f5f5f5", padding: "14px 20px", marginBottom: 32, display: "flex", alignItems: "flex-start", gap: 12 }}>
         <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, background: "#000000", color: "#ffffff", padding: "2px 8px", flexShrink: 0, marginTop: 1 }}>
-          LIVE
+          ON-CHAIN
         </div>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "#333333", margin: 0, lineHeight: 1.5 }}>
-          Tokens are minted on-chain to your wallet. Each call mints 10,000 xUSDC / xEURC or 1 xclrBTC. Connect your wallet to Arc Testnet (Chain ID: 5042002) first. 24-hour cooldown per token per wallet.
+          Cooldown enforced on-chain — cannot be bypassed by clearing browser data. 24h per token per wallet. Connect to Arc Testnet (Chain ID: 5042002).
         </p>
       </div>
 
@@ -163,7 +170,7 @@ export default function FaucetPage() {
               <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#666666", marginBottom: 6 }}>{token.desc}</div>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "2px solid #000000", padding: "2px 10px" }}>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700 }}>{token.display}</span>
-                <span style={{ fontFamily: "var(--font-body)", fontSize: 11, color: "#666666" }}>{token.symbol} per mint</span>
+                <span style={{ fontFamily: "var(--font-body)", fontSize: 11, color: "#666666" }}>{token.symbol} per mint · 24h cooldown</span>
               </div>
             </div>
             <div style={{ flexShrink: 0, width: 140 }}>
@@ -176,7 +183,7 @@ export default function FaucetPage() {
       {/* Footer note */}
       <div style={{ marginTop: 32, padding: "16px 20px", border: "2px solid #dddddd", borderLeft: "5px solid #000000" }}>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#666666", margin: 0, lineHeight: 1.6 }}>
-          <strong style={{ color: "#000000" }}>Why testnet tokens?</strong> The Arc Testnet faucet gives 20 USDC + 20 EURC + 0.0001 cirBTC every 2 hours — not enough for meaningful lending tests. xUSDC, xEURC and xclrBTC are our own testnet tokens: mint freely, test everything. The pool is pre-seeded with 500k xUSDC + 200k xEURC + 10 xclrBTC.
+          <strong style={{ color: "#000000" }}>Why testnet tokens?</strong> The Arc Testnet faucet gives 20 USDC + 20 EURC + 0.0001 cirBTC every 2 hours — not enough for meaningful lending tests. xUSDC, xEURC and xclrBTC are our own testnet tokens with on-chain 24h cooldown. The pool is pre-seeded with 500k xUSDC + 200k xEURC + 10 xclrBTC.
         </p>
       </div>
     </div>
