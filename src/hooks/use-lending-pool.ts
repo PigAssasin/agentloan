@@ -50,16 +50,15 @@ export function useUserAccountData() {
 
   const MAX_HF = 2n ** 256n - 1n;
 
-  const hfRaw = raw?.healthFactor ?? 0n;
+  // Default to MAX_HF when data not yet loaded — avoids false "LIQUIDATABLE" flash
+  const hfRaw = raw?.healthFactor ?? MAX_HF;
   const healthFactor: string =
-    hfRaw === MAX_HF || (hfRaw === 0n && (raw?.totalDebtUSD ?? 0n) === 0n)
+    hfRaw === MAX_HF
       ? "∞"
       : (Number(hfRaw * 100n / WAD) / 100).toFixed(2);
 
   return {
-    // Raw collateral value (for "Total Supplied" display)
     totalCollateralUSD: raw ? Number(formatUnits(raw.totalRawCollateralUSD, 18)) : 0,
-    // Weighted collateral (for internal health factor — not used in UI directly)
     totalWeightedCollateralUSD: raw ? Number(formatUnits(raw.totalCollateralUSD, 18)) : 0,
     totalDebtUSD:       raw ? Number(formatUnits(raw.totalDebtUSD, 18))       : 0,
     availableBorrows:   raw ? Number(formatUnits(raw.availableBorrowsUSD, 18)): 0,
