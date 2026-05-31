@@ -5,6 +5,15 @@ import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { SineLogo } from "./SineLogo";
 
+const btnBase: React.CSSProperties = {
+  height: 40, padding: "0 20px", border: "3px solid #000000",
+  fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 12,
+  textTransform: "uppercase", letterSpacing: "0.08em",
+  cursor: "pointer", whiteSpace: "nowrap",
+};
+const btnBlack: React.CSSProperties = { ...btnBase, background: "#000000", color: "#ffffff" };
+const btnWhite: React.CSSProperties = { ...btnBase, background: "#ffffff", color: "#000000" };
+
 const LINKS = [
   { href: "/app",     label: "Dashboard" },
   { href: "/markets", label: "Markets"   },
@@ -59,7 +68,26 @@ export function Navbar() {
           ))}
         </nav>
 
-        <ConnectButton chainStatus="none" showBalance={false} accountStatus="address" />
+        <ConnectButton.Custom>
+          {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
+            if (!mounted) return <div style={{ width: 140, height: 40 }} />;
+            if (!account) return (
+              <button onClick={openConnectModal} style={btnBlack}>
+                CONNECT WALLET
+              </button>
+            );
+            if (chain?.unsupported) return (
+              <button onClick={openChainModal} style={{ ...btnWhite, borderColor: "#FF0000", color: "#FF0000" }}>
+                WRONG NETWORK
+              </button>
+            );
+            return (
+              <button onClick={openAccountModal} style={btnBlack}>
+                {account.displayName}
+              </button>
+            );
+          }}
+        </ConnectButton.Custom>
       </div>
     </header>
   );

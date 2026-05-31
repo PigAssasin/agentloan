@@ -269,50 +269,5 @@ input[type=number]  { -moz-appearance: textfield; }
 .text-red    { color: var(--color-error); }
 .gradient-bar { background: var(--color-black); height: 4px; }
 
-/* ── RainbowKit overrides — RawBlock style ───────────────── */
-/* Connect button */
-[data-testid="rk-connect-button"],
-button[data-testid="rk-connect-button"] {
-  background:     #000000 !important;
-  color:          #ffffff !important;
-  border:         3px solid #000000 !important;
-  border-radius:  0 !important;
-  font-family:    var(--font-body) !important;
-  font-weight:    600 !important;
-  font-size:      12px !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.08em !important;
-  height:         40px !important;
-  padding:        0 20px !important;
-  box-shadow:     none !important;
-}
-/* Account button (connected state) */
-[data-testid="rk-account-button"] {
-  background:     #000000 !important;
-  color:          #ffffff !important;
-  border:         3px solid #000000 !important;
-  border-radius:  0 !important;
-  font-family:    var(--font-mono) !important;
-  font-size:      12px !important;
-  height:         40px !important;
-  padding:        0 16px !important;
-  box-shadow:     none !important;
-}
-/* Chain / wrong network button */
-[data-testid="rk-chain-button"] {
-  background:     #ffffff !important;
-  color:          #000000 !important;
-  border:         3px solid #000000 !important;
-  border-radius:  0 !important;
-  height:         40px !important;
-  box-shadow:     none !important;
-}
-/* Modal overlay */
-[data-rk] [role="dialog"] {
-  border-radius: 0 !important;
-  border: 4px solid #000000 !important;
-}
-/* All RainbowKit buttons inside modal */
-[data-rk] button {
-  border-radius: 0 !important;
-}
+/* ── RainbowKit modal — remove rounded corners only ─────── */
+[data-rk] [role="dialog"] { border-radius: 0 !important; }
