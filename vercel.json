@@ -1,7 +1,7 @@
 {
   "name": "arcbank",
   "framework": "nextjs",
-  "buildCommand": "next build",
+  "buildCommand": "next build --webpack",
   "outputDirectory": ".next",
   "env": {
     "NEXT_PUBLIC_ARC_RPC": "https://rpc.testnet.arc.network",
