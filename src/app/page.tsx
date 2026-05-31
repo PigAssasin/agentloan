@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { SineLogo } from "../components/shared/SineLogo";
+import { ArcBankLogo } from "../components/shared/ArcBankLogo";
 
 const HeroCanvas = dynamic(
   () => import("../components/shared/HeroCanvas").then(m => m.HeroCanvas),
@@ -16,8 +16,8 @@ export default function LandingPage() {
       <header style={{ borderBottom: "3px solid #000000", position: "sticky", top: 0, zIndex: 100, background: "#ffffff" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <SineLogo size={30} color="#000000" />
-            <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, letterSpacing: "-0.02em" }}>sinX</span>
+            <ArcBankLogo size={30} color="#000000" />
+            <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, letterSpacing: "-0.02em" }}>ArcBank</span>
           </div>
         </div>
       </header>
@@ -205,7 +205,7 @@ export default function LandingPage() {
             START LENDING TODAY
           </h2>
           <p style={{ fontFamily: "var(--font-body)", fontSize: 16, color: "#444444", lineHeight: 1.7, marginBottom: 40 }}>
-            Connect your wallet, mint free testnet tokens from the sinX faucet, and start supplying collateral on Arc Testnet in minutes.
+            Connect your wallet, mint free testnet tokens from the ArcBank faucet, and start supplying collateral on Arc Testnet in minutes.
           </p>
           <div style={{ display: "flex", gap: 0, justifyContent: "center" }}>
             <Link href="/app" style={{
@@ -238,8 +238,8 @@ export default function LandingPage() {
             {/* Brand */}
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <SineLogo size={28} color="#000000" />
-                <span style={{ fontFamily: "var(--font-heading)", fontSize: 20, letterSpacing: "-0.02em" }}>sinX</span>
+                <ArcBankLogo size={28} color="#000000" />
+                <span style={{ fontFamily: "var(--font-heading)", fontSize: 20, letterSpacing: "-0.02em" }}>ArcBank</span>
               </div>
               <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#666666", lineHeight: 1.7, maxWidth: 280 }}>
                 Decentralized lending protocol built on Arc Network. Testnet only. Use responsibly.
@@ -300,7 +300,7 @@ export default function LandingPage() {
           {/* Bottom bar */}
           <div style={{ borderTop: "3px solid #000000", paddingTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999" }}>
-              sinX · Arc Testnet (Chain ID: 5042002) · Not audited · Testnet only
+              ArcBank · Arc Testnet (Chain ID: 5042002) · Not audited · Testnet only
             </span>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999" }}>
               © 2026

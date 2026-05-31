@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { SineLogo } from "./SineLogo";
+import { ArcBankLogo } from "./ArcBankLogo";
 
 const btnBase: React.CSSProperties = {
   height: 40, padding: "0 20px", border: "3px solid #000000",
@@ -42,9 +42,9 @@ export function Navbar() {
       }}>
         {/* Logo */}
         <Link href="/app" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
-          <SineLogo size={34} color="#000000" />
+          <ArcBankLogo size={34} color="#000000" />
           <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "#000000", letterSpacing: "-0.02em" }}>
-            sinX
+            ArcBank
           </span>
         </Link>
 

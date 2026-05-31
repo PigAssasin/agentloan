@@ -23,7 +23,7 @@ export const ARC_TESTNET_CONTRACTS = {
   MULTICALL3:       "0xcA11bde05977b3631167028862bE2a173976CA11",
   CREATE2_FACTORY:  "0x4e59b44847b379578588920cA78FbF26c0B4956C",
 
-  // ── sinX Protocol — Arc Testnet (fully audited, scaled balances, configurable risk params) ─
+  // ── ArcBank Protocol — Arc Testnet (fully audited, scaled balances, configurable risk params) ─
   LENDING_POOL:          "0x893D0223f63A06CFf83F0e9ef4d58af1Ad2B95fb" as `0x${string}`,
   PRICE_ORACLE:          "0x052252c0EEdCb0064D9bD49c94DdfE81Bad6fEA5" as `0x${string}`,
   INTEREST_RATE_STRATEGY:"0x22B2A153F7694e49096ef91D627a80c5b6602Ffd" as `0x${string}`,

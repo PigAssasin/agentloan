@@ -22,7 +22,7 @@ const wcProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 // Reown/WalletConnect errors about localhost not being on the allowlist (I-1 fix)
 const wagmiConfig = wcProjectId
   ? getDefaultConfig({
-      appName: "sinX",
+      appName: "ArcBank",
       projectId: wcProjectId,
       chains: [arcTestnet],
       ssr: true,
