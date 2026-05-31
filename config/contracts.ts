@@ -34,9 +34,9 @@ export const ARC_TESTNET_CONTRACTS = {
   X_CLR_BTC:"0x55BF14097bff153655e390A760F30c04BFd1Cc2B" as `0x${string}`,
 
   // Price feeds (MockAggregator on testnet)
-  BTC_FEED:  "0xd8803667F6eAF279A42Ddc1BdBeBDc5cCe620b45" as `0x${string}`,
-  EUR_FEED:  "0xB9BcC2a1BDD5771d9CC38e461b797970364C21b3" as `0x${string}`,
-  USDC_FEED: "0x2360348E5c678DB9A62dF3e473347A7bF79De97f" as `0x${string}`,
+  BTC_FEED:  "0x83960CA07ec5ce18dd9527b72f4d935ccB7bcb1C" as `0x${string}`,
+  EUR_FEED:  "0x8B54dfCEd88216Cfb8663CE5e69076562063773F" as `0x${string}`,
+  USDC_FEED: "0xeF01e0F3F6e7B3C96a2e72529ee5dEf0010942cE" as `0x${string}`,
 } as const;
 
 export const TOKEN_DECIMALS = {

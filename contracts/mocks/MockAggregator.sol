@@ -23,7 +23,8 @@ contract MockAggregator {
         uint256 updatedAt,
         uint80  answeredInRound
     ) {
-        return (1, _answer, _updatedAt, _updatedAt, 1);
+        // Always return current block.timestamp so testnet prices never go stale
+        return (1, _answer, block.timestamp, block.timestamp, 1);
     }
 
     function setAnswer(int256 answer) external {
