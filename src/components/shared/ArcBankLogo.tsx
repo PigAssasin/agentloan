@@ -12,9 +12,9 @@ export function ArcBankLogo({ size = 32, color = "#000000" }: Props) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      {/* Narrow upside-down parabola — no baseline */}
+      {/* Narrow upside-down parabola — peak at y=12 so visual CoM aligns with text midline */}
       <path
-        d="M13,36 C14,6 26,6 27,36"
+        d="M13,36 C14,12 26,12 27,36"
         stroke={color}
         strokeWidth="3"
         strokeLinecap="round"
