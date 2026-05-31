@@ -39,7 +39,7 @@ export default function ProfilePage() {
   const [withdrawSymbol, setWithdraw] = useState<string | null>(null);
   const [repaySymbol, setRepay]       = useState<string | null>(null);
 
-  const { totalCollateralUSD, totalDebtUSD, availableBorrows, healthFactor, isLoading: accountLoading } = useUserAccountData();
+  const { totalCollateralUSD, totalDebtUSD, availableBorrows, healthFactor } = useUserAccountData();
   const { supply, borrow, refetch: refetchBalances } = useUserTokenBalances();
   const { balances: walletBalances } = useWalletBalances();
   const { reserves } = useReserveData();
@@ -68,7 +68,7 @@ export default function ProfilePage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 0, marginBottom: 32, border: "4px solid #000000" }}>
         {[
           { label: "Net Worth",           value: `$${netWorth.toFixed(2)}`,              color: "#000000" },
-          { label: "Health Factor",       value: accountLoading ? "..." : healthFactor,  color: hfClr     },
+          { label: "Health Factor",       value: healthFactor,  color: hfClr     },
           { label: "Total Collateral",    value: `$${totalCollateralUSD.toFixed(2)}`,    color: "#000000" },
           { label: "Available to Borrow", value: `$${availableBorrows.toFixed(2)}`,      color: "#000000" },
         ].map(({ label, value, color }, i) => (

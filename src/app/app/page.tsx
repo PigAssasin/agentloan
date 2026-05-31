@@ -6,7 +6,7 @@ import { BorrowPanel }        from "../../components/dashboard/BorrowPanel";
 import { useUserAccountData } from "../../hooks/use-lending-pool";
 
 export default function DashboardPage() {
-  const { totalCollateralUSD, totalDebtUSD, healthFactorRaw, isLoading } = useUserAccountData();
+  const { totalCollateralUSD, totalDebtUSD, healthFactorRaw } = useUserAccountData();
 
   const netWorth = totalCollateralUSD - totalDebtUSD;
 
@@ -16,9 +16,9 @@ export default function DashboardPage() {
       {/* Stats row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0, marginBottom: 32, border: "4px solid #000000" }}>
         {[
-          { label: "Net Worth",      value: isLoading ? "..." : `$${netWorth.toFixed(2)}` },
-          { label: "Total Supplied", value: isLoading ? "..." : `$${totalCollateralUSD.toFixed(2)}` },
-          { label: "Total Borrowed", value: isLoading ? "..." : `$${totalDebtUSD.toFixed(2)}` },
+          { label: "Net Worth",      value: `$${netWorth.toFixed(2)}` },
+          { label: "Total Supplied", value: `$${totalCollateralUSD.toFixed(2)}` },
+          { label: "Total Borrowed", value: `$${totalDebtUSD.toFixed(2)}` },
         ].map(({ label, value }, i) => (
           <div key={label} style={{
             padding: "24px 28px",
