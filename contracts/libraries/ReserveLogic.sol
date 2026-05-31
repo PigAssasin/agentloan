@@ -22,7 +22,7 @@ library ReserveLogic {
         uint256 elapsed = block.timestamp - reserve.lastUpdateTimestamp;
         if (elapsed == 0) return;
 
-        if (reserve.totalBorrowed > 0 && reserve.currentBorrowRate > 0) {
+        if (reserve.totalScaledBorrow > 0 && reserve.currentBorrowRate > 0) {
             uint256 borrowFactor = calculateLinearInterest(
                 reserve.currentBorrowRate,
                 reserve.lastUpdateTimestamp
@@ -32,7 +32,7 @@ library ReserveLogic {
             );
         }
 
-        if (reserve.totalSupplied > 0 && reserve.currentLiquidityRate > 0) {
+        if (reserve.totalScaledSupply > 0 && reserve.currentLiquidityRate > 0) {
             uint256 liquidityFactor = calculateLinearInterest(
                 reserve.currentLiquidityRate,
                 reserve.lastUpdateTimestamp

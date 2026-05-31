@@ -14,10 +14,10 @@ library DataTypes {
         uint16  ltv;                  // e.g. 7000 = 70%
         uint16  liquidationThreshold; // e.g. 7500 = 75%
         uint16  liquidationBonus;     // e.g. 10500 = +5% above debt value
-        // Pool state (in token's own decimals)
-        uint256 totalSupplied;
-        uint256 totalBorrowed;
-        uint256 supplyCap;            // 0 = unlimited
+        // Pool state — stored as scaled amounts (divide by index to get real value)
+        uint256 totalScaledSupply;    // sum of (depositAmount * RAY / liquidityIndex_at_deposit)
+        uint256 totalScaledBorrow;    // sum of (borrowAmount  * RAY / borrowIndex_at_borrow)
+        uint256 supplyCap;            // 0 = unlimited (in real token units)
     }
 
     struct UserAccountData {

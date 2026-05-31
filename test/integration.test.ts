@@ -91,17 +91,24 @@ describe("Integration — full user lifecycle", () => {
     expect(aliceDebtAfter).to.be.lt(BORROW_AMOUNT, "Alice debt reduced after liquidation");
 
     // ── Alice repays remaining debt ────────────────────────────────────
+    // Pass a large overpay amount so repay() caps to real debt (clears fully)
     const remaining = await pool.getUserBorrowBalance(usdcAddr, alice.address);
     if (remaining > 0n) {
-      await xUSDC.connect(alice).approve(poolAddr, remaining);
-      await pool.connect(alice).repay(usdcAddr, remaining);
+      // Overpay by 2x to ensure we cover any interest accrued between query and execution
+      const overpay = remaining * 2n;
+      await xUSDC.ownerMint(alice.address, overpay);
+      await xUSDC.connect(alice).approve(poolAddr, overpay);
+      await pool.connect(alice).repay(usdcAddr, overpay);
     }
     expect(await pool.getUserBorrowBalance(usdcAddr, alice.address)).to.equal(0n, "Debt cleared");
 
     // ── Bob withdraws supply ──────────────────────────────────────────
+    // Fetch real balance and withdraw; tiny dust may remain from index rounding
     const bobWithdrawAmount = await pool.getUserSupplyBalance(usdcAddr, bob.address);
     await pool.connect(bob).withdraw(usdcAddr, bobWithdrawAmount);
-    expect(await pool.getUserSupplyBalance(usdcAddr, bob.address)).to.equal(0n, "Bob withdrew all");
+    // Allow up to 1 token-unit of dust from rounding (interest index math)
+    const bobRemaining = await pool.getUserSupplyBalance(usdcAddr, bob.address);
+    expect(bobRemaining).to.be.lte(1n, "Bob withdrew all (dust ≤ 1 unit)");
   });
 
   it("multiple suppliers and borrowers coexist", async () => {
@@ -145,9 +152,12 @@ describe("Integration — full user lifecycle", () => {
     await pool.connect(carol).deposit(btcAddr, ethers.parseUnits("0.2", 8));
     await pool.connect(carol).borrow(usdcAddr, ethers.parseUnits("2000", 6));
 
-    // Verify pool state
+    // Verify pool state via view functions (real balances)
+    // At t=0 indexes = RAY, so totalScaledSupply * RAY / RAY == real amount
     const r = await pool.getReserveData(usdcAddr);
-    expect(r.totalSupplied).to.equal(ethers.parseUnits("10000", 6));
-    expect(r.totalBorrowed).to.equal(ethers.parseUnits("2000", 6));
+    // totalScaledSupply * liquidityIndex / RAY == 10000 USDC (at index = RAY)
+    expect(r.totalScaledSupply).to.equal(ethers.parseUnits("10000", 6));
+    // totalScaledBorrow * borrowIndex / RAY == 2000 USDC (at index = RAY)
+    expect(r.totalScaledBorrow).to.equal(ethers.parseUnits("2000", 6));
   });
 });

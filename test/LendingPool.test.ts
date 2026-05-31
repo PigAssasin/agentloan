@@ -58,20 +58,23 @@ async function setup() {
 // ── Deposit ────────────────────────────────────────────────────────────────
 
 describe("LendingPool — deposit", () => {
-  it("updates totalSupplied correctly", async () => {
+  it("updates totalScaledSupply correctly (at t=0, scaled == real)", async () => {
     const { pool, xUSDC, alice, poolAddr, usdcAddr } = await setup();
     const amount = ethers.parseUnits("1000", 6);
     await xUSDC.connect(alice).approve(poolAddr, amount);
     await pool.connect(alice).deposit(usdcAddr, amount);
     const r = await pool.getReserveData(usdcAddr);
-    expect(r.totalSupplied).to.equal(amount);
+    // At t=0 indexes = RAY, so totalScaledSupply == amount
+    expect(r.totalScaledSupply).to.equal(amount);
   });
 
-  it("tracks user supply balance", async () => {
+  it("tracks user supply balance (real balance == deposit at t=0)", async () => {
     const { pool, xUSDC, alice, poolAddr, usdcAddr } = await setup();
     const amount = ethers.parseUnits("500", 6);
     await xUSDC.connect(alice).approve(poolAddr, amount);
     await pool.connect(alice).deposit(usdcAddr, amount);
+    // getUserSupplyBalance returns real balance = scaled * index / RAY
+    // At t=0 index = RAY, so real == amount
     expect(await pool.getUserSupplyBalance(usdcAddr, alice.address)).to.equal(amount);
   });
 
@@ -116,6 +119,7 @@ describe("LendingPool — withdraw", () => {
     const amount = ethers.parseUnits("500", 6);
     await xUSDC.connect(alice).approve(poolAddr, amount);
     await pool.connect(alice).deposit(usdcAddr, amount);
+    // Real balance = amount at t=0; trying amount+1 should fail
     await expect(pool.connect(alice).withdraw(usdcAddr, amount + 1n))
       .to.be.revertedWithCustomError(pool, "InsufficientBalance");
   });
@@ -148,6 +152,7 @@ describe("LendingPool — borrow", () => {
     // 0.1 BTC × $60k × 70% LTV = $4,200 max
     const borrowAmount = ethers.parseUnits("3000", 6);
     await pool.connect(alice).borrow(usdcAddr, borrowAmount);
+    // At t=0 index = RAY, so real borrow == borrow amount
     expect(await pool.getUserBorrowBalance(usdcAddr, alice.address)).to.equal(borrowAmount);
   });
 
@@ -191,8 +196,11 @@ describe("LendingPool — repay", () => {
 
   it("clears debt after full repay", async () => {
     const { pool, xUSDC, alice, usdcAddr, poolAddr, borrowAmount } = await setupWithDebt();
-    await xUSDC.connect(alice).approve(poolAddr, borrowAmount);
-    await pool.connect(alice).repay(usdcAddr, borrowAmount);
+    // Overpay by 2x so repay() caps to realDebt (inclusive of any accrued interest)
+    const overpay = borrowAmount * 2n;
+    await xUSDC.ownerMint(alice.address, overpay);
+    await xUSDC.connect(alice).approve(poolAddr, overpay);
+    await pool.connect(alice).repay(usdcAddr, overpay);
     expect(await pool.getUserBorrowBalance(usdcAddr, alice.address)).to.equal(0n);
   });
 
@@ -201,7 +209,7 @@ describe("LendingPool — repay", () => {
     const overpay = borrowAmount * 2n;
     await xUSDC.connect(alice).approve(poolAddr, overpay);
     await pool.connect(alice).repay(usdcAddr, overpay);
-    // Debt should be zero, not negative
+    // Debt should be zero (capped at real debt)
     expect(await pool.getUserBorrowBalance(usdcAddr, alice.address)).to.equal(0n);
   });
 });
@@ -242,7 +250,7 @@ describe("LendingPool — liquidation", () => {
 
     // Liquidator received some BTC
     expect(collAfter).to.be.gt(collBefore);
-    // Alice's debt reduced
+    // Alice's debt reduced (real borrow balance is now less than original 4000 USDC)
     expect(await pool.getUserBorrowBalance(usdcAddr, alice.address))
       .to.be.lt(ethers.parseUnits("4000", 6));
   });

@@ -165,8 +165,16 @@ export function useReserveData() {
         const priceWAD  = (priceData?.[i]?.result as bigint) ?? 0n;
         const priceUSD  = priceWAD > 0n ? Number(formatUnits(priceWAD, 18)) : 1; // fallback $1
 
-        const totalSupplied    = r ? Number(formatUnits(r.totalSupplied,  t.decimals)) : 0;
-        const totalBorrowed    = r ? Number(formatUnits(r.totalBorrowed,  t.decimals)) : 0;
+        // Compute real totals from scaled × index / RAY
+        const rayBig = 10n ** 27n;
+        const liquidityIndex: bigint = r ? BigInt(r.liquidityIndex) : rayBig;
+        const borrowIndex: bigint    = r ? BigInt(r.borrowIndex)    : rayBig;
+        const scaledSupply: bigint   = r ? BigInt(r.totalScaledSupply) : 0n;
+        const scaledBorrow: bigint   = r ? BigInt(r.totalScaledBorrow) : 0n;
+        const realSupplyRaw = scaledSupply > 0n ? (scaledSupply * liquidityIndex) / rayBig : 0n;
+        const realBorrowRaw = scaledBorrow > 0n ? (scaledBorrow * borrowIndex)    / rayBig : 0n;
+        const totalSupplied    = r ? Number(formatUnits(realSupplyRaw, t.decimals)) : 0;
+        const totalBorrowed    = r ? Number(formatUnits(realBorrowRaw, t.decimals)) : 0;
         const totalSuppliedUSD = totalSupplied * priceUSD;
         const totalBorrowedUSD = totalBorrowed * priceUSD;
         const utilization      = totalSupplied > 0 ? (totalBorrowed / totalSupplied) * 100 : 0;

@@ -492,12 +492,12 @@
           },
           {
             "internalType": "uint256",
-            "name": "totalSupplied",
+            "name": "totalScaledSupply",
             "type": "uint256"
           },
           {
             "internalType": "uint256",
-            "name": "totalBorrowed",
+            "name": "totalScaledBorrow",
             "type": "uint256"
           },
           {
@@ -854,12 +854,12 @@
       },
       {
         "internalType": "uint256",
-        "name": "totalSupplied",
+        "name": "totalScaledSupply",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "totalBorrowed",
+        "name": "totalScaledBorrow",
         "type": "uint256"
       },
       {
@@ -904,7 +904,7 @@
         "type": "address"
       }
     ],
-    "name": "userBorrow",
+    "name": "userScaledBorrow",
     "outputs": [
       {
         "internalType": "uint256",
@@ -928,7 +928,7 @@
         "type": "address"
       }
     ],
-    "name": "userSupply",
+    "name": "userScaledSupply",
     "outputs": [
       {
         "internalType": "uint256",
