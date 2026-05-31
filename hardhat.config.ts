@@ -3,6 +3,9 @@ import "@nomicfoundation/hardhat-toolbox";
 import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
+// Use tsconfig.hardhat.json for contract compilation and tests
+process.env.TS_NODE_PROJECT = "tsconfig.hardhat.json";
+
 const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.20",
