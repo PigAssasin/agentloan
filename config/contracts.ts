@@ -24,7 +24,7 @@ export const ARC_TESTNET_CONTRACTS = {
   CREATE2_FACTORY:  "0x4e59b44847b379578588920cA78FbF26c0B4956C",
 
   // ── sinX Protocol — Arc Testnet deployment ────────────────────────────
-  LENDING_POOL:          "0xE0Eea36812451EdA53C23ebc04B7C83bd4c2CF64" as `0x${string}`,
+  LENDING_POOL:          "0x3F8BA765a3202dAEbab551eEff4F457953FCc5E9" as `0x${string}`,
   PRICE_ORACLE:          "0x80639D6DcC40ef45fF2B3A94FBdb6C021aB7Bc45" as `0x${string}`,
   INTEREST_RATE_STRATEGY:"0x5C348E434d593c71301F613a38369EAf1aDaCDE9" as `0x${string}`,
 

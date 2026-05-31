@@ -21,11 +21,12 @@ library DataTypes {
     }
 
     struct UserAccountData {
-        uint256 totalCollateralUSD;   // WAD 1e18
-        uint256 totalDebtUSD;         // WAD 1e18
-        uint256 availableBorrowsUSD;  // WAD 1e18
-        uint256 healthFactor;         // WAD 1e18 — type(uint256).max if no debt
-        uint256 weightedLtv;          // WAD
+        uint256 totalCollateralUSD;      // WAD — weighted by liquidation threshold (for HF)
+        uint256 totalRawCollateralUSD;   // WAD — raw collateral value (for display)
+        uint256 totalDebtUSD;            // WAD 1e18
+        uint256 availableBorrowsUSD;     // WAD 1e18
+        uint256 healthFactor;            // WAD 1e18 — type(uint256).max if no debt
+        uint256 weightedLtv;             // WAD
         uint256 weightedLiquidationThreshold; // WAD
     }
 }

@@ -40,6 +40,7 @@ export function useUserAccountData() {
 
   const raw = data as {
     totalCollateralUSD: bigint;
+    totalRawCollateralUSD: bigint;
     totalDebtUSD: bigint;
     availableBorrowsUSD: bigint;
     healthFactor: bigint;
@@ -51,12 +52,15 @@ export function useUserAccountData() {
 
   const hfRaw = raw?.healthFactor ?? 0n;
   const healthFactor: string =
-    hfRaw === MAX_HF || hfRaw === 0n && (raw?.totalDebtUSD ?? 0n) === 0n
+    hfRaw === MAX_HF || (hfRaw === 0n && (raw?.totalDebtUSD ?? 0n) === 0n)
       ? "∞"
       : (Number(hfRaw * 100n / WAD) / 100).toFixed(2);
 
   return {
-    totalCollateralUSD: raw ? Number(formatUnits(raw.totalCollateralUSD, 18)) : 0,
+    // Raw collateral value (for "Total Supplied" display)
+    totalCollateralUSD: raw ? Number(formatUnits(raw.totalRawCollateralUSD, 18)) : 0,
+    // Weighted collateral (for internal health factor — not used in UI directly)
+    totalWeightedCollateralUSD: raw ? Number(formatUnits(raw.totalCollateralUSD, 18)) : 0,
     totalDebtUSD:       raw ? Number(formatUnits(raw.totalDebtUSD, 18))       : 0,
     availableBorrows:   raw ? Number(formatUnits(raw.availableBorrowsUSD, 18)): 0,
     healthFactor,

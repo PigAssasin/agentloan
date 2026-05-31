@@ -247,9 +247,9 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
             uint256 supplied = userSupply[token][user];
             if (supplied > 0) {
                 uint256 valueUSD = _toUSD(supplied, price, r.decimals);
-                totalCollRaw              += valueUSD;
-                data.totalCollateralUSD   += (valueUSD * r.liquidationThreshold) / 10_000;
-                data.availableBorrowsUSD  += (valueUSD * r.ltv) / 10_000;
+                data.totalRawCollateralUSD += valueUSD;
+                data.totalCollateralUSD    += (valueUSD * r.liquidationThreshold) / 10_000;
+                data.availableBorrowsUSD   += (valueUSD * r.ltv) / 10_000;
             }
 
             uint256 borrowed = userBorrow[token][user];
@@ -258,7 +258,8 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
             }
         }
 
-        if (data.totalDebtUSD > 0 && data.availableBorrowsUSD > data.totalDebtUSD) {
+        // Subtract existing debt from available borrows
+        if (data.availableBorrowsUSD > data.totalDebtUSD) {
             data.availableBorrowsUSD -= data.totalDebtUSD;
         } else {
             data.availableBorrowsUSD = 0;
