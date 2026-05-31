@@ -2,10 +2,19 @@
 
 import { useReadContract, useReadContracts, useAccount } from "wagmi";
 import { formatUnits } from "viem";
-import LendingPoolABI from "@/lib/abi-lending-pool.json";
+import LendingPoolABI   from "@/lib/abi-lending-pool.json";
+import PriceOracleABI   from "@/lib/abi-price-oracle.json";
 import { ARC_TESTNET_CONTRACTS } from "../../config/contracts";
 
-const POOL = ARC_TESTNET_CONTRACTS.LENDING_POOL;
+const POOL   = ARC_TESTNET_CONTRACTS.LENDING_POOL;
+const ORACLE = ARC_TESTNET_CONTRACTS.PRICE_ORACLE;
+
+// Format USD without locale dependency (no toLocaleString)
+export function fmtUSD(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000)     return `$${(value / 1_000).toFixed(1)}K`;
+  return `$${value.toFixed(2)}`;
+}
 
 export const TOKENS = {
   xUSDC:   { address: ARC_TESTNET_CONTRACTS.X_USDC,    decimals: 6, symbol: "xUSDC",   name: "Arc Testnet USD",  borrowable: true  },
@@ -118,41 +127,63 @@ export function useUserTokenBalances() {
   };
 }
 
-// ── Reserve data (APY, utilization, pool totals) ──────────────────────────
+// ── Reserve data (APY, utilization, pool totals + USD values) ────────────
 
 export function useReserveData() {
   const tokenList = Object.values(TOKENS);
 
-  const contracts = tokenList.map(t => ({
+  const reserveContracts = tokenList.map(t => ({
     address: POOL,
     abi: LendingPoolABI as any,
     functionName: "getReserveData" as const,
     args: [t.address],
   }));
 
-  const { data, isLoading, refetch } = useReadContracts({
-    contracts,
+  const priceContracts = tokenList.map(t => ({
+    address: ORACLE,
+    abi: PriceOracleABI as any,
+    functionName: "getPrice" as const,
+    args: [t.address],
+  }));
+
+  const { data,       isLoading, refetch: refetchReserves } = useReadContracts({
+    contracts: reserveContracts,
     query: { refetchInterval: 4_000, refetchOnWindowFocus: true, placeholderData: (prev: any) => prev },
   });
+
+  const { data: priceData, refetch: refetchPrices } = useReadContracts({
+    contracts: priceContracts,
+    query: { refetchInterval: 30_000, placeholderData: (prev: any) => prev },
+  });
+
+  const refetch = () => { refetchReserves(); refetchPrices(); };
 
   return {
     reserves: Object.fromEntries(
       tokenList.map((t, i) => {
-        const r = data?.[i]?.result as any;
-        const totalSupplied  = r ? Number(formatUnits(r.totalSupplied,  t.decimals)) : 0;
-        const totalBorrowed  = r ? Number(formatUnits(r.totalBorrowed,  t.decimals)) : 0;
-        const utilization    = totalSupplied > 0 ? (totalBorrowed / totalSupplied) * 100 : 0;
-        const supplyApy      = r ? rayToApy(BigInt(r.currentLiquidityRate)) : 0;
-        const borrowApy      = r ? rayToApy(BigInt(r.currentBorrowRate))    : 0;
+        const r         = data?.[i]?.result as any;
+        const priceWAD  = (priceData?.[i]?.result as bigint) ?? 0n;
+        const priceUSD  = priceWAD > 0n ? Number(formatUnits(priceWAD, 18)) : 1; // fallback $1
 
-        return [t.symbol, { totalSupplied, totalBorrowed, utilization, supplyApy, borrowApy }];
+        const totalSupplied    = r ? Number(formatUnits(r.totalSupplied,  t.decimals)) : 0;
+        const totalBorrowed    = r ? Number(formatUnits(r.totalBorrowed,  t.decimals)) : 0;
+        const totalSuppliedUSD = totalSupplied * priceUSD;
+        const totalBorrowedUSD = totalBorrowed * priceUSD;
+        const utilization      = totalSupplied > 0 ? (totalBorrowed / totalSupplied) * 100 : 0;
+        const supplyApy        = r ? rayToApy(BigInt(r.currentLiquidityRate)) : 0;
+        const borrowApy        = r ? rayToApy(BigInt(r.currentBorrowRate))    : 0;
+
+        return [t.symbol, {
+          totalSupplied, totalBorrowed,
+          totalSuppliedUSD, totalBorrowedUSD,
+          utilization, supplyApy, borrowApy, priceUSD,
+        }];
       })
     ) as Record<TokenSymbol, {
-      totalSupplied: number;
-      totalBorrowed: number;
-      utilization: number;
-      supplyApy: number;
-      borrowApy: number;
+      totalSupplied: number;    totalBorrowed: number;
+      totalSuppliedUSD: number; totalBorrowedUSD: number;
+      utilization: number;      supplyApy: number;
+      borrowApy: number;        priceUSD: number;
     }>,
     isLoading,
     refetch,

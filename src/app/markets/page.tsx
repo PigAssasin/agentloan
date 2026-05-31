@@ -1,7 +1,7 @@
 "use client";
 
 import { TokenIcon }    from "../../components/shared/TokenIcon";
-import { useReserveData, TOKENS } from "../../hooks/use-lending-pool";
+import { useReserveData, TOKENS, fmtUSD } from "../../hooks/use-lending-pool";
 
 const ARC_NATIVE_TOKENS = [
   {
@@ -42,8 +42,8 @@ export default function MarketsPage() {
   const { reserves, isLoading } = useReserveData();
   const tokenList = Object.values(TOKENS);
 
-  const totalSupplied = tokenList.reduce((a, t) => a + (reserves[t.symbol]?.totalSupplied ?? 0), 0);
-  const totalBorrowed = tokenList.reduce((a, t) => a + (reserves[t.symbol]?.totalBorrowed ?? 0), 0);
+  const totalSupplied = tokenList.reduce((a, t) => a + (reserves[t.symbol]?.totalSuppliedUSD ?? 0), 0);
+  const totalBorrowed = tokenList.reduce((a, t) => a + (reserves[t.symbol]?.totalBorrowedUSD ?? 0), 0);
 
   return (
     <div style={{ maxWidth: "var(--page-max-width)", margin: "0 auto", padding: "32px 24px" }}>
@@ -58,8 +58,8 @@ export default function MarketsPage() {
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0, marginBottom: 40, border: "4px solid #000000" }}>
         {[
-          { label: "Total Market Size", value: isLoading ? "..." : `$${totalSupplied.toLocaleString(undefined, { maximumFractionDigits: 2 })}` },
-          { label: "Total Borrowed",    value: isLoading ? "..." : `$${totalBorrowed.toLocaleString(undefined, { maximumFractionDigits: 2 })}` },
+          { label: "Total Market Size", value: fmtUSD(totalSupplied) },
+          { label: "Total Borrowed",    value: fmtUSD(totalBorrowed) },
           { label: "Active Markets",    value: String(tokenList.length) },
         ].map(({ label, value }, i) => (
           <div key={label} style={{ padding: "20px 24px", borderRight: i < 2 ? "4px solid #000000" : "none" }}>
@@ -92,11 +92,11 @@ export default function MarketsPage() {
 
           {tokenList.map((t, i) => {
             const r    = reserves[t.symbol];
-            const sup  = r?.totalSupplied  ?? 0;
-            const bor  = r?.totalBorrowed  ?? 0;
-            const util = r?.utilization    ?? 0;
-            const sApy = r?.supplyApy      ?? 0;
-            const bApy = r?.borrowApy      ?? 0;
+            const sup  = r?.totalSuppliedUSD ?? 0;
+            const bor  = r?.totalBorrowedUSD ?? 0;
+            const util = r?.utilization      ?? 0;
+            const sApy = r?.supplyApy        ?? 0;
+            const bApy = r?.borrowApy        ?? 0;
 
             return (
               <div key={t.symbol} style={{
@@ -113,14 +113,14 @@ export default function MarketsPage() {
                 </div>
                 <div>
                   <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
-                    {isLoading ? "..." : sup >= 1e6 ? `$${(sup / 1e6).toFixed(2)}M` : `$${sup.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+                    {fmtUSD(sup)}
                   </div>
                 </div>
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "#008000" }}>
                   {isLoading ? "..." : `${sApy.toFixed(2)}%`}
                 </div>
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
-                  {isLoading ? "..." : bor > 0 ? (bor >= 1e6 ? `$${(bor / 1e6).toFixed(2)}M` : `$${bor.toLocaleString(undefined, { maximumFractionDigits: 2 })}`) : "$0.00"}
+                  {bor > 0 ? fmtUSD(bor) : "$0.00"}
                 </div>
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: bApy > 0 ? "#FFA500" : "#999999" }}>
                   {isLoading ? "..." : bApy > 0 ? `${bApy.toFixed(2)}%` : "N/A"}
