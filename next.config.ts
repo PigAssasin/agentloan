@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Use webpack (not Turbopack) — wagmi/viem require specific webpack externals
+  turbopack: undefined,
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
     config.resolve.alias = {
