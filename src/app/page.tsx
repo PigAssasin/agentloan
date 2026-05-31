@@ -16,7 +16,7 @@ export default function LandingPage() {
       <header style={{ borderBottom: "3px solid #000000", position: "sticky", top: 0, zIndex: 100, background: "#ffffff" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <ArcBankLogo size={30} color="#000000" />
+            <ArcBankLogo size={30} color="#000000" style={{ marginBottom: 6 }} />
             <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, letterSpacing: "-0.02em" }}>ArcBank</span>
           </div>
         </div>
@@ -238,7 +238,7 @@ export default function LandingPage() {
             {/* Brand */}
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <ArcBankLogo size={28} color="#000000" />
+                <ArcBankLogo size={28} color="#000000" style={{ marginBottom: 6 }} />
                 <span style={{ fontFamily: "var(--font-heading)", fontSize: 20, letterSpacing: "-0.02em" }}>ArcBank</span>
               </div>
               <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#666666", lineHeight: 1.7, maxWidth: 280 }}>
