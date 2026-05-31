@@ -286,7 +286,7 @@ export default function LandingPage() {
               {[
                 { label: "Twitter / X",  href: "https://x.com/nheoweb3" },
                 { label: "LinkedIn",     href: "https://www.linkedin.com/in/ha-nguyen-28645426a/" },
-                { label: "GitHub",       href: "https://github.com" },
+                { label: "GitHub",       href: "https://github.com/PigAssasin/arcbank" },
               ].map(({ label, href }) => (
                 <div key={label} style={{ marginBottom: 10 }}>
                   <a href={href} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#000000", textDecoration: "none" }}>
