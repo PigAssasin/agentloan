@@ -12,13 +12,11 @@ export function ArcBankLogo({ size = 32, color = "#000000" }: Props) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      {/* Baseline */}
-      <line x1="4" y1="32" x2="36" y2="32" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      {/* Upside-down parabola: y = -x² shape, peak at top center */}
+      {/* Narrow upside-down parabola — no baseline */}
       <path
-        d="M6,32 C9,6 31,6 34,32"
+        d="M13,36 C14,6 26,6 27,36"
         stroke={color}
-        strokeWidth="2.8"
+        strokeWidth="3"
         strokeLinecap="round"
         fill="none"
       />
