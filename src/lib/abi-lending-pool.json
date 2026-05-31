@@ -533,6 +533,11 @@
           },
           {
             "internalType": "uint256",
+            "name": "totalRawCollateralUSD",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
             "name": "totalDebtUSD",
             "type": "uint256"
           },
