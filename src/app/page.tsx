@@ -12,13 +12,32 @@ export default function LandingPage() {
   return (
     <div style={{ fontFamily: "var(--font-body)", background: "#ffffff", color: "#000000" }}>
 
-      {/* ── Navbar — logo only ───────────────────────────────── */}
+      {/* ── Navbar ───────────────────────────────────────────── */}
       <header style={{ borderBottom: "3px solid #000000", position: "sticky", top: 0, zIndex: 100, background: "#ffffff" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {/* Logo */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <ArcBankLogo size={30} color="#000000" style={{ marginBottom: 6 }} />
             <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, letterSpacing: "-0.02em" }}>ArcBank</span>
           </div>
+          {/* Links */}
+          <nav style={{ display: "flex", gap: 0 }}>
+            {[
+              { href: "/docs", label: "Docs" },
+              { href: "/app",  label: "Launch App" },
+            ].map(({ href, label }, i) => (
+              <Link key={href} href={href} style={{
+                fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13,
+                textTransform: "uppercase", letterSpacing: "0.08em",
+                textDecoration: "none", padding: "8px 20px",
+                borderLeft: "2px solid #000000",
+                color: i === 1 ? "#ffffff" : "#000000",
+                background: i === 1 ? "#000000" : "transparent",
+              }}>
+                {label}
+              </Link>
+            ))}
+          </nav>
         </div>
       </header>
 
