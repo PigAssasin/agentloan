@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { RainbowKitProvider, getDefaultConfig, lightTheme } from "@rainbow-me/rainbowkit";
-import { WagmiProvider } from "wagmi";
+import { WagmiProvider, createConfig, http } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { arcTestnet } from "../../config/networks";
 import "@rainbow-me/rainbowkit/styles.css";
 
-// Prevent MetaMask SDK from crashing during SSR — it accesses localStorage at module level
+// Prevent MetaMask SDK from crashing during SSR
 if (typeof window === "undefined") {
   const noop = () => null;
   (global as unknown as Record<string, unknown>).localStorage = {
@@ -15,19 +16,25 @@ if (typeof window === "undefined") {
   };
 }
 
-// I-1: WalletConnect requires a real project ID from cloud.walletconnect.com
-// Without it, WalletConnect connections are disabled (MetaMask injected wallet still works)
-const wcProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || undefined;
+const wcProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 
-const wagmiConfig = getDefaultConfig({
-  appName: "sinX",
-  projectId: wcProjectId ?? "00000000000000000000000000000000", // WC disabled if not set
-  chains: [arcTestnet],
-  ssr: true,
-});
+// When no WalletConnect projectId is set, use injected-only config to avoid
+// Reown/WalletConnect errors about localhost not being on the allowlist (I-1 fix)
+const wagmiConfig = wcProjectId
+  ? getDefaultConfig({
+      appName: "sinX",
+      projectId: wcProjectId,
+      chains: [arcTestnet],
+      ssr: true,
+    })
+  : createConfig({
+      chains: [arcTestnet],
+      connectors: [injected()],
+      transports: { [arcTestnet.id]: http() },
+      ssr: true,
+    });
 
 export function Web3Provider({ children }: { children: React.ReactNode }) {
-  // QueryClient inside component — each render tree gets its own instance, preventing SSR data leaks
   const [queryClient] = useState(() => new QueryClient());
 
   return (
