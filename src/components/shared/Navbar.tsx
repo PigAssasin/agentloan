@@ -42,7 +42,7 @@ export function Navbar() {
       }}>
         {/* Logo */}
         <Link href="/app" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
-          <ArcBankLogo size={34} color="#000000" style={{ marginBottom: 6 }} />
+          <ArcBankLogo size={34} color="#000000" />
           <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "#000000", letterSpacing: "-0.02em" }}>
             ArcBank
           </span>
