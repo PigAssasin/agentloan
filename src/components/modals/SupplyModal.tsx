@@ -21,11 +21,16 @@ export function SupplyModal({ symbol, onClose }: { symbol: string; onClose: () =
   const tokenAddress = token?.address as `0x${string}` | undefined;
 
   // Refetch all data immediately after tx confirms
-  const { refetch: refetchAccount }  = useUserAccountData();
-  const { refetch: refetchBalances } = useUserTokenBalances();
-  const { refetch: refetchWallet }   = useWalletBalances();
-  const { refetch: refetchReserves } = useReserveData();
+  const { refetch: refetchAccount }     = useUserAccountData();
+  const { refetch: refetchBalances }    = useUserTokenBalances();
+  const { balances, refetch: refetchWallet } = useWalletBalances();
+  const { refetch: refetchReserves }    = useReserveData();
   function refetchAll() { refetchAccount(); refetchBalances(); refetchWallet(); refetchReserves(); }
+
+  // Actual wallet balance for this token
+  const walletBalance = balances[symbol as keyof typeof balances] ?? 0;
+  const maxDecimals   = decimals === 8 ? 8 : 6;
+  const maxStr        = walletBalance > 0 ? walletBalance.toFixed(maxDecimals).replace(/\.?0+$/, "") : "0";
 
   const { writeContract: runApprove, data: approveTxHash } = useWriteContract();
   const { writeContract: runDeposit, data: depositTxHash } = useWriteContract();
@@ -52,6 +57,7 @@ export function SupplyModal({ symbol, onClose }: { symbol: string; onClose: () =
   function handle() {
     const n = parseFloat(amount);
     if (!amount || !isFinite(n) || n <= 0 || !tokenAddress) return;
+    if (walletBalance > 0 && n > walletBalance) return; // prevent over-spend
     const parsed = parseUnits(amount, decimals);
     setStep("approving");
     runApprove({ address: tokenAddress, abi: MockERC20ABI as any, functionName: "approve", args: [POOL, parsed] });
@@ -84,9 +90,12 @@ export function SupplyModal({ symbol, onClose }: { symbol: string; onClose: () =
       <div style={{ display: "flex", gap: 0, marginBottom: 20, border: "3px solid #000000" }}>
         <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00"
           style={{ flex: 1, padding: "12px 16px", fontSize: 16, fontFamily: "var(--font-mono)", border: "none", outline: "none", background: "#ffffff", color: "#000000" }} />
-        <button onClick={() => setAmount("10000")}
+        <button onClick={() => setAmount(maxStr)}
           style={{ padding: "0 20px", background: "#000000", color: "#ffffff", border: "none", borderLeft: "3px solid #000000", fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer" }}>MAX</button>
       </div>
+      <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999", marginBottom: 4 }}>
+        Wallet: {walletBalance > 0 ? `${maxStr} ${symbol}` : "0 — get tokens from Faucet"}
+      </p>
 
       <div style={{ marginBottom: 20, padding: "10px 14px", border: `2px solid ${step === "depositing" ? "#008000" : "#000000"}`, background: step === "depositing" ? "#f0fff0" : "#f5f5f5", fontFamily: "var(--font-body)", fontSize: 12, color: step === "depositing" ? "#008000" : "#333333" }}>
         {stepLabel}
