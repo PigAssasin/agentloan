@@ -9,7 +9,7 @@ process.env.TS_NODE_PROJECT = "tsconfig.hardhat.json";
 const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.20",
-    settings: { optimizer: { enabled: true, runs: 200 } },
+    settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true },
   },
   networks: {
     hardhat: {},
