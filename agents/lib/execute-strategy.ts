@@ -11,7 +11,8 @@
 import { formatUnits, type Address } from "viem";
 import { BOT_CONFIG }                from "../config";
 import { publicClient }              from "./pool-reader";
-import type { UserPosition, LiquidationPlan } from "./liquidator";
+import type { UserPosition } from "./pool-reader";
+import type { LiquidationPlan } from "./liquidator";
 import { createBotWallet, estimatePlan, executeLiquidation } from "./liquidator";
 import { liquidateViaCircle, approveViaCircle } from "./circle-wallet";
 import LendingPoolABI from "../../src/lib/abi-lending-pool.json";
