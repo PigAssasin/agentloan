@@ -20,6 +20,7 @@
 import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
+import { formatUnits }    from "viem";
 import { BOT_CONFIG } from "./config";
 import {
   publicClient,
@@ -30,6 +31,7 @@ import {
 } from "./lib/pool-reader";
 import { createBotWallet, estimatePlan, executeLiquidation } from "./lib/liquidator";
 import { updateOraclePrices } from "./lib/oracle-updater";
+import { notify, liquidationMessage } from "./lib/notifier";
 
 // Wrap oracle update with timeout — prevents bot from hanging if tx stalls
 async function safeUpdateOracle(wallet: ReturnType<typeof createBotWallet>): Promise<void> {
@@ -100,11 +102,19 @@ async function main() {
 
         console.log(`\n  [block ${block.number}] ${liquidatable.length} liquidatable position(s)`);
 
-        // ── Step 4: Liquidate ───────────────────────────────────────────────
+        // ── Step 4: Liquidate + notify ─────────────────────────────────────
         for (const pos of liquidatable) {
           const plan = await estimatePlan(pos, botAddr);
           if (!plan) continue;
-          await executeLiquidation(pos, plan, wallet);
+          const txHash = await executeLiquidation(pos, plan, wallet);
+          if (txHash) {
+            await notify(liquidationMessage(
+              pos.address,
+              formatUnits(plan.debtAmount, 6),
+              plan.collToken,
+              txHash,
+            ));
+          }
         }
 
       } catch (e: any) {
