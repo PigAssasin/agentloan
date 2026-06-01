@@ -1,6 +1,7 @@
 {
   "name": "arcbank",
   "framework": "nextjs",
+  "installCommand": "npm install --legacy-peer-deps",
   "buildCommand": "next build --webpack",
   "outputDirectory": ".next",
   "env": {
