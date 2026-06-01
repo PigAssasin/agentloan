@@ -83,7 +83,7 @@ let sessionsIssued: number   = 0;
 async function scanPositions() {
   try {
     const latest = await client.getBlockNumber();
-    const from   = latest > 50_000n ? latest - 50_000n : 0n;
+    const from   = latest > 10_000n ? latest - 10_000n : 0n;
 
     const logs = await client.getLogs({
       address: POOL, event: BORROW_EVENT,
