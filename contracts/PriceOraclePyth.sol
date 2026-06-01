@@ -76,7 +76,8 @@ contract PriceOraclePyth is Ownable {
 
     // Emergency withdrawal of any ETH used for Pyth fees
     function withdrawFees() external onlyOwner {
-        payable(owner()).transfer(address(this).balance);
+        (bool ok, ) = payable(owner()).call{value: address(this).balance}("");
+        require(ok, "transfer failed");
     }
 
     receive() external payable {}

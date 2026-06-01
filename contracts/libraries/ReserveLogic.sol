@@ -27,9 +27,9 @@ library ReserveLogic {
                 reserve.currentBorrowRate,
                 reserve.lastUpdateTimestamp
             );
-            reserve.borrowIndex = uint128(
-                (uint256(reserve.borrowIndex) * borrowFactor) / RAY
-            );
+            uint256 newBorrowIndex = (uint256(reserve.borrowIndex) * borrowFactor) / RAY;
+            require(newBorrowIndex <= type(uint128).max, "borrow index overflow");
+            reserve.borrowIndex = uint128(newBorrowIndex);
         }
 
         if (reserve.totalScaledSupply > 0 && reserve.currentLiquidityRate > 0) {
@@ -37,9 +37,9 @@ library ReserveLogic {
                 reserve.currentLiquidityRate,
                 reserve.lastUpdateTimestamp
             );
-            reserve.liquidityIndex = uint128(
-                (uint256(reserve.liquidityIndex) * liquidityFactor) / RAY
-            );
+            uint256 newLiquidityIndex = (uint256(reserve.liquidityIndex) * liquidityFactor) / RAY;
+            require(newLiquidityIndex <= type(uint128).max, "liquidity index overflow");
+            reserve.liquidityIndex = uint128(newLiquidityIndex);
         }
 
         reserve.lastUpdateTimestamp = uint40(block.timestamp);

@@ -56,6 +56,8 @@ export async function estimatePlan(
   let bestColl   = "" as Address;
   let bestSupply = 0n;
   for (const tok of BOT_CONFIG.TOKENS) {
+    // Never use debt token as collateral — same token causes accounting corruption
+    if (tok.address.toLowerCase() === debtToken.toLowerCase()) continue;
     const bal = await publicClient.readContract({
       address: BOT_CONFIG.LENDING_POOL, abi: LendingPoolABI as any,
       functionName: "getUserSupplyBalance",
