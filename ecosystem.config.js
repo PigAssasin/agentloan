@@ -8,9 +8,9 @@ module.exports = {
       cwd:         "/root/arcbank",
       interpreter: "node",
       env: {
-        DRY_RUN:             "false",
         TS_NODE_PROJECT:     "tsconfig.hardhat.json",
         NEXT_PUBLIC_ARC_RPC: "https://rpc.testnet.arc.network",
+        // DRY_RUN must be set explicitly in .env.local — not defaulted here
       },
       // Auto-restart settings
       restart_delay:  5000,   // wait 5s before restarting after crash
