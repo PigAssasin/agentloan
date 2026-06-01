@@ -8,7 +8,22 @@
  *   CIRCLE_ENTITY_SECRET — 32-byte hex, registered in Circle console
  *   CIRCLE_WALLET_ID   — set after createBotCircleWallet() first run
  */
-import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
+// On VPS: SDK installed at /root/circle-sdk (separate dir to avoid arcbank npm conflicts)
+// Locally: installed in node_modules via npm install @circle-fin/developer-controlled-wallets
+let _circleSDK: any;
+function getSDK() {
+  if (_circleSDK) return _circleSDK;
+  const paths = [
+    "@circle-fin/developer-controlled-wallets",
+    "/root/circle-sdk/node_modules/@circle-fin/developer-controlled-wallets",
+  ];
+  for (const p of paths) {
+    try { _circleSDK = require(p); return _circleSDK; } catch {}
+  }
+  throw new Error("Circle SDK not found. Run: npm install @circle-fin/developer-controlled-wallets");
+}
+const initiateDeveloperControlledWalletsClient = (...args: any[]) =>
+  getSDK().initiateDeveloperControlledWalletsClient(...args);
 import { BOT_CONFIG } from "../config";
 
 function getCircleClient() {
