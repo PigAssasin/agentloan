@@ -36,10 +36,16 @@ export function BorrowModal({ token: tokenSymbol, onClose }: { token: string; on
   function handle() {
     const n = parseFloat(amount);
     if (!amount || !isFinite(n) || n <= 0 || !tokenAddress) return;
-    // L-5 fix: compare USD value (not token amount) against availableBorrows (USD)
-    const priceUSD = r?.priceUSD ?? 1;
+    const priceUSD  = r?.priceUSD ?? 1;
     const amountUSD = n * priceUSD;
-    if (amountUSD > availableBorrows) return;
+    if (availableBorrows <= 0) {
+      alert("Supply collateral first before borrowing.");
+      return;
+    }
+    if (amountUSD > availableBorrows) {
+      alert(`Max borrow is $${availableBorrows.toFixed(2)}. Reduce your amount.`);
+      return;
+    }
     writeContract({ address: POOL, abi: LendingPoolABI as any, functionName: "borrow", args: [tokenAddress, parseUnits(amount, decimals)] });
   }
 
