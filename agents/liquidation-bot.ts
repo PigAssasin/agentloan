@@ -43,6 +43,7 @@ import { updateOraclePrices }          from "./lib/oracle-updater";
 import { notify, liquidationMessage }  from "./lib/notifier";
 import { checkAndRefill }              from "./lib/auto-refill";
 import { isCircleEnabled, executeWithStrategy, getBotBalanceAddress } from "./lib/execute-strategy";
+import { createLiquidationJob, submitLiquidationProof, closeJob, getJobId } from "./lib/job-manager";
 
 // Wrap oracle update with timeout — prevents bot from hanging if tx stalls
 async function safeUpdateOracle(wallet: ReturnType<typeof createBotWallet>): Promise<void> {
@@ -124,15 +125,27 @@ async function main() {
 
         console.log(`\n  [block ${block.number}] ${liquidatable.length} liquidatable position(s)`);
 
+        // ── Step 3.5: Register on ERC-8183 (best-effort, never blocks) ────
+        if (pkWallet) {
+          for (const pos of liquidatable) {
+            await createLiquidationJob(pos.address, pkWallet).catch(() => {});
+          }
+        }
+
         // ── Step 4: Liquidate + notify (Circle SCA or private key) ────────
         for (const pos of liquidatable) {
           const txHash = await executeWithStrategy(pos, botAddr as `0x${string}`);
           if (txHash) {
-            // Fetch plan details for notification (plan was computed inside executeWithStrategy)
             console.log(`\n  Liquidated ${pos.address} | TX: ${txHash}`);
+            // Submit ERC-8183 proof (best-effort)
+            const jobId = getJobId(pos.address);
+            if (jobId !== null && pkWallet) {
+              await submitLiquidationProof(jobId, txHash as `0x${string}`, pkWallet).catch(() => {});
+              closeJob(pos.address);
+            }
             await notify(liquidationMessage(
               pos.address,
-              formatUnits(pos.totalDebtUSD / 2n, 18), // approx 50% of debt
+              formatUnits(pos.totalDebtUSD / 2n, 18),
               BOT_CONFIG.DEBT_TOKEN,
               txHash,
             ));
