@@ -1,6 +1,6 @@
-const { createWalletClient, createPublicClient, http, parseAbi, parseUnits, formatUnits } = require('/root/arcbank/node_modules/viem');
-const { privateKeyToAccount } = require('/root/arcbank/node_modules/viem/accounts');
-require('/root/arcbank/node_modules/dotenv').config({ path: '/root/arcbank/.env.local' });
+const { createWalletClient, createPublicClient, http, parseAbi, parseUnits, formatUnits } = require('viem');
+const { privateKeyToAccount } = require('viem/accounts');
+require('dotenv').config({ path: '.env.local' });
 
 const chain = {
   id: 5042002,

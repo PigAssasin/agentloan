@@ -68,14 +68,12 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
-      botAddress:   BOT_ADDRESS ?? null,
-      botAgentId:   process.env.NEXT_PUBLIC_BOT_AGENT_ID ?? null,
-      balances,
-      liquidations,
-      scannedBlocks: 10_000,
-    });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { botAddress: BOT_ADDRESS ?? null, botAgentId: process.env.NEXT_PUBLIC_BOT_AGENT_ID ?? null, balances, liquidations, scannedBlocks: 10_000 },
+      { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" } },
+    );
+  } catch {
+    // Don't expose internal error details to the client
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
