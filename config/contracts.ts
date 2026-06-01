@@ -23,9 +23,9 @@ export const ARC_TESTNET_CONTRACTS = {
   MULTICALL3:       "0xcA11bde05977b3631167028862bE2a173976CA11",
   CREATE2_FACTORY:  "0x4e59b44847b379578588920cA78FbF26c0B4956C",
 
-  // ── ArcBank Protocol — Arc Testnet (fully audited, scaled balances, configurable risk params) ─
-  LENDING_POOL:          "0x893D0223f63A06CFf83F0e9ef4d58af1Ad2B95fb" as `0x${string}`,
-  PRICE_ORACLE:          "0x052252c0EEdCb0064D9bD49c94DdfE81Bad6fEA5" as `0x${string}`,
+  // ── ArcBank Protocol — Arc Testnet (Pyth real-time oracle) ──────────────────
+  LENDING_POOL:          "0x6cdbe1cc2Cb9864D9c9118b87799D55967151433" as `0x${string}`,
+  PRICE_ORACLE:          "0xb9f2F5326FcdcDB2D9a9DF3aF21A95279621f999" as `0x${string}`, // PriceOraclePyth
   INTEREST_RATE_STRATEGY:"0x22B2A153F7694e49096ef91D627a80c5b6602Ffd" as `0x${string}`,
 
   // Mock testnet tokens — 24h on-chain cooldown per wallet
