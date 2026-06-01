@@ -2,6 +2,7 @@
 
 import { TokenIcon }    from "../../components/shared/TokenIcon";
 import { useReserveData, TOKENS, fmtUSD } from "../../hooks/use-lending-pool";
+import { useMarketPrices } from "../../hooks/use-market-prices";
 
 const ARC_NATIVE_TOKENS = [
   {
@@ -41,6 +42,7 @@ const colH: React.CSSProperties = {
 export default function MarketsPage() {
   const { reserves, isLoading } = useReserveData();
   const tokenList = Object.values(TOKENS);
+  const livePrice = useMarketPrices(30_000); // refresh every 30s
 
   const totalSupplied = tokenList.reduce((a, t) => a + (reserves[t.symbol]?.totalSuppliedUSD ?? 0), 0);
   const totalBorrowed = tokenList.reduce((a, t) => a + (reserves[t.symbol]?.totalBorrowedUSD ?? 0), 0);
@@ -48,6 +50,28 @@ export default function MarketsPage() {
 
   return (
     <div style={{ maxWidth: "var(--page-max-width)", margin: "0 auto", padding: "32px 24px" }}>
+
+      {/* Live price ticker */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 32, border: "3px solid #000000", background: "#000000" }}>
+        {[
+          { label: "BTC/USD", value: livePrice.BTC ? `$${livePrice.BTC.toLocaleString("en-US")}` : "—" },
+          { label: "EUR/USD", value: livePrice.EUR ? `$${livePrice.EUR.toFixed(4)}` : "—" },
+          { label: "USDC/USD", value: "$1.0000" },
+          { label: "LAST UPDATE", value: livePrice.updatedAt ? livePrice.updatedAt.toLocaleTimeString() : "—" },
+        ].map(({ label, value }, i) => (
+          <div key={label} style={{ flex: 1, padding: "10px 20px", borderRight: i < 3 ? "2px solid #333" : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontFamily: "var(--font-body)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#666" }}>{label}</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: i === 3 ? "#666" : "#00ff88" }}>{value}</span>
+          </div>
+        ))}
+        <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: livePrice.BTC ? "#00ff88" : "#666",
+            animation: livePrice.BTC ? "pulse 2s infinite" : "none" }} />
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: livePrice.BTC ? "#00ff88" : "#666" }}>
+            {livePrice.BTC ? "LIVE" : "—"}
+          </span>
+        </div>
+      </div>
 
       {/* Header */}
       <div style={{ marginBottom: 32, borderBottom: "4px solid #000000", paddingBottom: 24 }}>

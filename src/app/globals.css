@@ -269,5 +269,10 @@ input[type=number]  { -moz-appearance: textfield; }
 .text-red    { color: var(--color-error); }
 .gradient-bar { background: var(--color-black); height: 4px; }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
 /* ── RainbowKit modal — remove rounded corners only ─────── */
 [data-rk] [role="dialog"] { border-radius: 0 !important; }
