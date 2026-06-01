@@ -28,11 +28,6 @@ function hfLabel(hf: bigint): string {
   return "LIQUIDATABLE";
 }
 
-function rtColor(rt: number): string {
-  if (rt === Infinity || rt > 1.5) return "#008000";
-  if (rt >= 1.0) return "#FFA500";
-  return "#FF0000";
-}
 
 export function HealthFactorBanner({ healthFactor, hfString }: { healthFactor: bigint; hfString: string }) {
   const color = hfColor(healthFactor);
@@ -44,7 +39,6 @@ export function HealthFactorBanner({ healthFactor, hfString }: { healthFactor: b
 
   const rt = useRealtimeHF(hfString);
   const showWarning = rt.hasSignificantDeviation && healthFactor !== MAX_HF && healthFactor !== 0n;
-  const rtColor_    = rtColor(rt.estimatedRaw);
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -80,34 +74,13 @@ export function HealthFactorBanner({ healthFactor, hfString }: { healthFactor: b
           <span style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999" }}>
             Health Factor
           </span>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            {/* Real-time estimate (if has debt) */}
-            {healthFactor !== MAX_HF && healthFactor !== 0n && (
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontFamily: "var(--font-body)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#999", marginBottom: 2 }}>
-                  Real-time est.
-                </div>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: rtColor_ }}>
-                  {rt.estimated}
-                </span>
-              </div>
-            )}
-            {/* On-chain HF */}
-            <div style={{ textAlign: "right" }}>
-              {healthFactor !== MAX_HF && healthFactor !== 0n && (
-                <div style={{ fontFamily: "var(--font-body)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#999", marginBottom: 2 }}>
-                  On-chain
-                </div>
-              )}
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color, border: `2px solid ${color}`, padding: "2px 8px" }}>
-                  {label}
-                </span>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 22, fontWeight: 700, color }}>
-                  {value}
-                </span>
-              </div>
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color, border: `2px solid ${color}`, padding: "2px 8px" }}>
+              {label}
+            </span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 22, fontWeight: 700, color }}>
+              {value}
+            </span>
           </div>
         </div>
         <div className="progress-track">
