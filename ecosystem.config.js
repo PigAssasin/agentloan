@@ -3,12 +3,13 @@ module.exports = {
   apps: [
     {
       name:        "arcbank-bot",
-      script:      "npx",
-      args:        "ts-node -P tsconfig.hardhat.json agents/liquidation-bot.ts",
-      interpreter: "none",
+      script:      "./node_modules/.bin/ts-node",
+      args:        "-P tsconfig.hardhat.json agents/liquidation-bot.ts",
+      cwd:         "/root/arcbank",
+      interpreter: "node",
       env: {
-        DRY_RUN:            "false",
-        TS_NODE_PROJECT:    "tsconfig.hardhat.json",
+        DRY_RUN:             "false",
+        TS_NODE_PROJECT:     "tsconfig.hardhat.json",
         NEXT_PUBLIC_ARC_RPC: "https://rpc.testnet.arc.network",
       },
       // Auto-restart settings
