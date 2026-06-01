@@ -53,7 +53,7 @@ export default function LiquidationsPage() {
 
       <WarnBox>
         <strong>⚠ ArcBank uses mock oracle prices</strong> on testnet (BTC = $60,000 fixed).
-        On mainnet with real Chainlink feeds, collateral prices fluctuate and liquidation risk is real.
+        On mainnet with real Pyth Network feeds, collateral prices fluctuate and liquidation risk is real.
         Always maintain a safe Health Factor buffer.
       </WarnBox>
     </DocPage>

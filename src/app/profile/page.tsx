@@ -303,9 +303,9 @@ export default function ProfilePage() {
           style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0 }}
         >
           {[
-            { label: "Liquidation Threshold", value: "75% (xclrBTC) · 85% (xEURC)", note: "Position liquidated below threshold" },
-            { label: "Liquidation Penalty",   value: "10% (xclrBTC) · 5% (xEURC)",  note: "Penalty on seized collateral" },
-            { label: "Oracle Staleness",       value: "Max 3600s",                    note: "Chainlink price feed freshness" },
+            { label: "Liquidation Threshold", value: "75% (xclrBTC) · 85% (xEURC) · 85% (xUSDC)", note: "HF below 1.0 triggers liquidation" },
+            { label: "Liquidation Bonus",     value: "+5% on all assets",               note: "Bonus collateral earned by liquidator" },
+            { label: "Oracle",                value: "Pyth Network · 15s updates",      note: "Real-time prices · max staleness 3600s" },
           ].map(({ label, value, note }, i) => (
             <div key={label} style={{
               padding: isMobile ? "14px 16px" : "20px 24px",
