@@ -15,6 +15,8 @@ const NAV = [
   { label: "Health Factor", href: "/docs/health-factor" },
   { label: "APY & Interest", href: "/docs/apy" },
   { label: "Liquidations", href: "/docs/liquidations" },
+  { divider: "Agents" },
+  { label: "DeFi Agents", href: "/docs/agents" },
   { divider: "Reference" },
   { label: "Smart Contracts", href: "/docs/contracts" },
   { label: "FAQ", href: "/docs/faq" },

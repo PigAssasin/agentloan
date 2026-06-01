@@ -39,6 +39,11 @@ const SECTIONS = [
     desc: "How undercollateralized positions are liquidated.",
   },
   {
+    title: "DeFi Agents",
+    slug: "agents",
+    desc: "Liquidation Bot, Guardian Agent, and Yield Optimizer — autonomous protocol protection.",
+  },
+  {
     title: "Smart Contracts",
     slug: "contracts",
     desc: "Technical reference — addresses, ABIs, and architecture.",
