@@ -32,6 +32,7 @@ import {
 import { createBotWallet, estimatePlan, executeLiquidation } from "./lib/liquidator";
 import { updateOraclePrices } from "./lib/oracle-updater";
 import { notify, liquidationMessage } from "./lib/notifier";
+import { checkAndRefill }            from "./lib/auto-refill";
 
 // Wrap oracle update with timeout — prevents bot from hanging if tx stalls
 async function safeUpdateOracle(wallet: ReturnType<typeof createBotWallet>): Promise<void> {
@@ -81,6 +82,9 @@ async function main() {
           process.stdout.write("·");
           return;
         }
+
+        // ── Step 1.5: Auto-refill gas if low (<10 USDC → send 100 from deployer)
+        await checkAndRefill(botAddr);
 
         // ── Step 2: Update oracle if stale ─────────────────────────────────
         const stale = await isOracleStale();
