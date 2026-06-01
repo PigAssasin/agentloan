@@ -241,15 +241,15 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         if (msg.sender == borrower) revert SelfLiquidation();
         if (debtAmountToRepay == 0) revert AmountZero();
 
+        // H-1 fix: update ALL indexes before HF check so debt/collateral values are fresh
+        _updateAllIndexes();
+
         (uint256 collUSD, uint256 debtUSD) = _getAccountCollateralAndDebt(borrower);
         uint256 hf = ValidationLogic.calculateHealthFactor(collUSD, debtUSD);
         if (hf >= 1e18) revert NotLiquidatable(borrower, hf);
 
         DataTypes.ReserveData storage debtRes  = _getReserve(debtToken);
         DataTypes.ReserveData storage collRes  = _getReserve(collateralToken);
-
-        debtRes.updateIndexes();
-        collRes.updateIndexes();
 
         // Close factor: max 50% of real debt per liquidation
         uint256 realDebt = _realUserBorrow(debtToken, borrower, debtRes);
