@@ -71,3 +71,6 @@ yarn-error.log*
 # ── Vercel ────────────────────────────────────────────────
 .vercel
 docs-site
+
+# Bot state (persisted on VPS disk, not committed)
+agents/state/last-block.txt
