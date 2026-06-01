@@ -11,12 +11,20 @@ const FAQS = [
     a: "Supply APY = Borrow APY × utilization. When very few people are borrowing relative to the total pool size, utilization is near zero and supply APY is near zero. Supply APY will increase as more borrowers use the pool.",
   },
   {
-    q: "Why do I need two transactions to supply?",
-    a: "ERC20 tokens require an 'approve' transaction before a smart contract can spend them. Step 1 sets the approval, Step 2 executes the deposit. This is standard in all DeFi protocols.",
+    q: "Why do I need two transactions to supply or repay?",
+    a: "ERC20 tokens require an 'approve' transaction before a smart contract can spend them. Step 1 sets the approval, Step 2 executes the deposit or repay. This is standard in all DeFi protocols.",
   },
   {
     q: "I cleared my browser data — will my faucet cooldown reset?",
     a: "No. The faucet cooldown is enforced by the smart contract (stored in lastMintTime[address] on-chain). Clearing cookies, localStorage, or using a different browser does not reset it.",
+  },
+  {
+    q: "What oracle does ArcBank use for prices?",
+    a: "ArcBank uses Pyth Network — a real-time pull oracle with data from multiple institutional providers. Prices are submitted on-chain before each transaction and also refreshed every 5 minutes by an automated process. This is the same oracle infrastructure used by major DeFi protocols on mainnet.",
+  },
+  {
+    q: "Why does the Health Factor sometimes show a different number briefly?",
+    a: "The Health Factor is calculated on-chain using the Pyth oracle price. If the on-chain price is slightly different from the real-time display price (updated every 15 seconds), you may see a brief discrepancy. If the prices diverge by more than 1%, a price lag warning appears on the dashboard.",
   },
   {
     q: "Why is my Health Factor showing ∞?",
@@ -39,8 +47,16 @@ const FAQS = [
     a: "It depends on your collateral: xclrBTC → 70% LTV, xEURC → 80% LTV, xUSDC → 80% LTV. Example: $10,000 in xclrBTC collateral → max $7,000 xUSDC borrow.",
   },
   {
+    q: "Does ArcBank work on mobile?",
+    a: "Yes. The app is fully responsive — all pages including Dashboard, Markets, Profile, Faucet, and Docs are optimized for mobile. On small screens, the navbar collapses into a hamburger menu and tables adjust to show essential columns.",
+  },
+  {
     q: "How do I add Arc Testnet to MetaMask?",
     a: "Go to MetaMask → Settings → Networks → Add Network → Add manually. Use: RPC: https://rpc.testnet.arc.network, Chain ID: 5042002, Symbol: USDC.",
+  },
+  {
+    q: "I supplied tokens but my dashboard shows $0. What happened?",
+    a: "This usually means your browser has cached data from an old contract address. Do a hard refresh (Ctrl+Shift+R), disconnect your wallet, and reconnect. If the issue persists, clear your browser's localStorage and reconnect.",
   },
   {
     q: "Why does WalletConnect not work?",

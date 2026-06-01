@@ -1,4 +1,4 @@
-import { DocPage, InfoBox, Table, Code } from "../_components/DocPage";
+import { DocPage, InfoBox, Table } from "../_components/DocPage";
 
 export default function ContractsPage() {
   return (
@@ -18,8 +18,8 @@ export default function ContractsPage() {
       <Table
         headers={["Contract", "Address"]}
         rows={[
-          ["LendingPool", "0x893D0223f63A06CFf83F0e9ef4d58af1Ad2B95fb"],
-          ["PriceOracle", "0x052252c0EEdCb0064D9bD49c94DdfE81Bad6fEA5"],
+          ["LendingPool", "0x6cdbe1cc2Cb9864D9c9118b87799D55967151433"],
+          ["PriceOraclePyth", "0xb9f2F5326FcdcDB2D9a9DF3aF21A95279621f999"],
           ["InterestRateStrategy", "0x22B2A153F7694e49096ef91D627a80c5b6602Ffd"],
           ["xUSDC (testnet)", "0xFa090bd1A524D861542888B6c5e7965dde1F4f35"],
           ["xEURC (testnet)", "0x11aC6A7f4c3235e4edda971838640bE9e55aC222"],
@@ -27,10 +27,32 @@ export default function ContractsPage() {
         ]}
       />
 
+      <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 24, marginBottom: 16, marginTop: 40 }}>PRICE ORACLE — PYTH NETWORK</h2>
+      <InfoBox>
+        ArcBank uses <strong>Pyth Network</strong> for real-time on-chain prices — not mock aggregators.
+        Pyth is a pull oracle: price data is fetched from Pyth Hermes API and submitted on-chain before each transaction.
+        Prices are also refreshed every 5 minutes by an automated GitHub Action.
+      </InfoBox>
+
+      <Table
+        headers={["Token", "Pyth Price ID", "Current Price"]}
+        rows={[
+          ["xclrBTC", "0xe62df6...fd0ace (BTC/USD)", "Real-time from Pyth"],
+          ["xEURC", "0xa995d0...ec30b (EUR/USD)", "Real-time from Pyth"],
+          ["xUSDC", "0xeaa020...9c94a (USDC/USD)", "Real-time from Pyth"],
+        ]}
+      />
+
+      <div style={{ border: "3px solid #000", padding: "16px 20px", marginBottom: 32, fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 2, background: "#f9f9f9" }}>
+        <div><strong>Pyth on Arc Testnet:</strong> 0x2880aB155794e7179c9eE2e38200202908C17B43</div>
+        <div><strong>Hermes API:</strong> https://hermes.pyth.network</div>
+        <div><strong>Staleness threshold:</strong> 3600 seconds</div>
+      </div>
+
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 24, marginBottom: 16, marginTop: 40 }}>ARCHITECTURE</h2>
       <div style={{ border: "3px solid #000", padding: "24px", background: "#f9f9f9", marginBottom: 32, fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 2 }}>
         <div>LendingPool.sol</div>
-        <div style={{ paddingLeft: 24 }}>├── PriceOracle.sol → MockAggregator (Chainlink-compatible)</div>
+        <div style={{ paddingLeft: 24 }}>├── PriceOraclePyth.sol → Pyth Network (real-time)</div>
         <div style={{ paddingLeft: 24 }}>├── InterestRateStrategy.sol (2-slope variable rate)</div>
         <div style={{ paddingLeft: 24 }}>├── libraries/ValidationLogic.sol (health factor math)</div>
         <div style={{ paddingLeft: 24 }}>├── libraries/ReserveLogic.sol (scaled balance indexes)</div>
@@ -60,7 +82,7 @@ export default function ContractsPage() {
           ["RAY", "1e27", "Interest rate indexes and scaled balance math"],
           ["WAD", "1e18", "Health factor and USD price calculations"],
           ["SECONDS_PER_YEAR", "31,536,000", "Annual rate → per-second accrual"],
-          ["MAX_STALENESS", "3600s", "Oracle price freshness check"],
+          ["MAX_STALENESS", "3600s", "Pyth price freshness check"],
         ]}
       />
 
