@@ -6,7 +6,7 @@ import { BorrowPanel }        from "../../components/dashboard/BorrowPanel";
 import { useUserAccountData } from "../../hooks/use-lending-pool";
 
 export default function DashboardPage() {
-  const { totalCollateralUSD, totalDebtUSD, healthFactorRaw } = useUserAccountData();
+  const { totalCollateralUSD, totalDebtUSD, healthFactorRaw, healthFactor: hfString } = useUserAccountData();
 
   const netWorth = totalCollateralUSD - totalDebtUSD;
 
@@ -35,7 +35,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <HealthFactorBanner healthFactor={healthFactorRaw} />
+      <HealthFactorBanner healthFactor={healthFactorRaw} hfString={hfString} />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <SupplyPanel />
