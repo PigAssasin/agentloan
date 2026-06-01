@@ -5,10 +5,11 @@ import { HealthFactorBanner } from "../../components/dashboard/HealthFactorBanne
 import { SupplyPanel }        from "../../components/dashboard/SupplyPanel";
 import { BorrowPanel }        from "../../components/dashboard/BorrowPanel";
 import { AgentsTab }          from "../../components/agents/AgentsTab";
+import { JobsTab }            from "../../components/agents/JobsTab";
 import { useUserAccountData } from "../../hooks/use-lending-pool";
 import { useIsMobile }        from "../../hooks/use-is-mobile";
 
-const TABS = ["POSITIONS", "AGENTS"] as const;
+const TABS = ["POSITIONS", "AGENTS", "JOBS"] as const;
 type Tab = typeof TABS[number];
 
 export default function DashboardPage() {
@@ -78,6 +79,7 @@ export default function DashboardPage() {
         </div>
       )}
       {tab === "AGENTS" && <AgentsTab />}
+      {tab === "JOBS"   && <JobsTab />}
     </div>
   );
 }

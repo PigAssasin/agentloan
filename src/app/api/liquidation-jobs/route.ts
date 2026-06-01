@@ -1,5 +1,5 @@
-import { createPublicClient, http, parseAbi, formatUnits, encodeFunctionData,
-         decodeFunctionResult, type Address } from "viem";
+import { createPublicClient, http, parseAbiItem, formatUnits,
+         encodeFunctionData, decodeFunctionResult, type Address } from "viem";
 import { ARC_TESTNET_CONTRACTS } from "../../../../config/contracts";
 import LendingPoolABI from "../../../lib/abi-lending-pool.json";
 import { NextResponse } from "next/server";
@@ -14,17 +14,30 @@ const arcTestnet = {
 const client = createPublicClient({ chain: arcTestnet, transport: http() });
 
 const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
-const MC3_ABI = parseAbi([
-  "function aggregate3(tuple(address target, bool allowFailure, bytes callData)[] calls) view returns (tuple(bool success, bytes returnData)[])",
-]);
-const BORROW_EVENT = {
-  type: "event", name: "Borrow",
-  inputs: [
-    { type: "address", name: "token",  indexed: true  },
-    { type: "address", name: "user",   indexed: true  },
-    { type: "uint256", name: "amount", indexed: false },
-  ],
-} as const;
+// Multicall3 aggregate3 — JSON ABI format required for tuple params
+const MC3_ABI = [{
+  name: "aggregate3",
+  type: "function",
+  stateMutability: "view",
+  inputs: [{
+    name: "calls", type: "tuple[]",
+    components: [
+      { name: "target",       type: "address" },
+      { name: "allowFailure", type: "bool"    },
+      { name: "callData",     type: "bytes"   },
+    ],
+  }],
+  outputs: [{
+    name: "returnData", type: "tuple[]",
+    components: [
+      { name: "success",    type: "bool"  },
+      { name: "returnData", type: "bytes" },
+    ],
+  }],
+}] as const;
+const BORROW_EVENT = parseAbiItem(
+  "event Borrow(address indexed token, address indexed user, uint256 amount)"
+);
 
 // Scan last 50k blocks for Borrow events → get all unique borrowers
 async function getAllBorrowers(): Promise<Address[]> {
