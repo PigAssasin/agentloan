@@ -31,7 +31,7 @@ export async function registerAgent(
     abi:          IDENTITY_ABI,
     functionName: "register",
     args:         [metadataURI],
-  });
+  } as any);
   console.log("Register tx:", hash);
 
   const receipt = await arcClient.waitForTransactionReceipt({ hash });
