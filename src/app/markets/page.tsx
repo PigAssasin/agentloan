@@ -3,6 +3,7 @@
 import { TokenIcon }    from "../../components/shared/TokenIcon";
 import { useReserveData, TOKENS, fmtUSD, TokenSymbol } from "../../hooks/use-lending-pool";
 import { useMarketPrices, MarketPrices } from "../../hooks/use-market-prices";
+import { useIsMobile }  from "../../hooks/use-is-mobile";
 
 // ── Continuously scrolling price ticker ───────────────────
 function PriceTicker({
@@ -132,34 +133,47 @@ export default function MarketsPage() {
   const { reserves, isLoading } = useReserveData();
   const tokenList = Object.values(TOKENS);
   const livePrice = useMarketPrices(30_000); // refresh every 30s
+  const isMobile  = useIsMobile();
 
   const totalSupplied = tokenList.reduce((a, t) => a + (reserves[t.symbol]?.totalSuppliedUSD ?? 0), 0);
   const totalBorrowed = tokenList.reduce((a, t) => a + (reserves[t.symbol]?.totalBorrowedUSD ?? 0), 0);
-  const priceError    = tokenList.some(t => reserves[t.symbol] && !reserves[t.symbol].priceAvailable);
+
+  // Mobile table: 3 columns (Asset, Supply APY, Borrow APY) instead of 6
+  const tableCols   = isMobile ? "2fr 1fr 1fr" : "2fr 1fr 1fr 1fr 1fr 1fr";
+  const tableHdrs   = isMobile
+    ? ["Asset", "Supply APY", "Borrow APY"]
+    : ["Asset", "Total Supplied", "Supply APY", "Total Borrowed", "Borrow APY", "Utilization"];
 
   return (
-    <div style={{ maxWidth: "var(--page-max-width)", margin: "0 auto", padding: "32px 24px" }}>
+    <div style={{ maxWidth: "var(--page-max-width)", margin: "0 auto", padding: isMobile ? "16px 16px" : "32px 24px" }}>
 
       {/* Scrolling price ticker */}
       <PriceTicker livePrice={livePrice} reserves={reserves} tokenList={tokenList} />
 
       {/* Header */}
       <div style={{ marginBottom: 32, borderBottom: "4px solid #000000", paddingBottom: 24 }}>
-        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 48, marginBottom: 0 }}>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: isMobile ? 32 : 48, marginBottom: 0 }}>
           MARKETS
         </h1>
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0, marginBottom: 40, border: "4px solid #000000" }}>
+      <div
+        className="col-1-mobile"
+        style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0, marginBottom: 40, border: "4px solid #000000" }}
+      >
         {[
           { label: "Total Market Size", value: fmtUSD(totalSupplied) },
           { label: "Total Borrowed",    value: fmtUSD(totalBorrowed) },
           { label: "Active Markets",    value: String(tokenList.length) },
         ].map(({ label, value }, i) => (
-          <div key={label} style={{ padding: "20px 24px", borderRight: i < 2 ? "4px solid #000000" : "none" }}>
+          <div key={label} style={{
+            padding: isMobile ? "14px 16px" : "20px 24px",
+            borderRight: !isMobile && i < 2 ? "4px solid #000000" : "none",
+            borderBottom: isMobile && i < 2 ? "4px solid #000000" : "none",
+          }}>
             <div style={{ ...colH, marginBottom: 8 }}>{label}</div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 28, fontWeight: 700 }}>{value}</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: isMobile ? 22 : 28, fontWeight: 700 }}>{value}</div>
           </div>
         ))}
       </div>
@@ -176,11 +190,11 @@ export default function MarketsPage() {
           </div>
         </div>
 
-        {/* Table */}
-        <div style={{ border: "4px solid #000000", borderTop: "none", background: "#ffffff" }}>
+        {/* Table — horizontal scroll on mobile */}
+        <div className="scroll-x-mobile" style={{ border: "4px solid #000000", borderTop: "none", background: "#ffffff" }}>
           {/* Column headers */}
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr", gap: 8, padding: "10px 24px", background: "#f5f5f5", borderBottom: "3px solid #000000" }}>
-            {["Asset", "Total Supplied", "Supply APY", "Total Borrowed", "Borrow APY", "Utilization"].map(h => (
+          <div style={{ display: "grid", gridTemplateColumns: tableCols, gap: 8, padding: "10px 24px", background: "#f5f5f5", borderBottom: "3px solid #000000", minWidth: isMobile ? "auto" : undefined }}>
+            {tableHdrs.map(h => (
               <span key={h} style={colH}>{h}</span>
             ))}
           </div>
@@ -195,39 +209,45 @@ export default function MarketsPage() {
 
             return (
               <div key={t.symbol} style={{
-                display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr",
-                gap: 8, padding: "16px 24px", alignItems: "center",
+                display: "grid", gridTemplateColumns: tableCols,
+                gap: 8, padding: isMobile ? "12px 16px" : "16px 24px", alignItems: "center",
                 borderBottom: i < tokenList.length - 1 ? "2px solid #000000" : "none",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <TokenIcon symbol={t.symbol} size={28} />
                   <div>
                     <div style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14 }}>{t.symbol}</div>
-                    <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#999999" }}>{t.name}</div>
+                    {!isMobile && <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#999999" }}>{t.name}</div>}
                   </div>
                 </div>
-                <div>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
-                    {sup !== null ? fmtUSD(sup) : "—"}
+                {!isMobile && (
+                  <div>
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
+                      {sup !== null ? fmtUSD(sup) : "—"}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "#008000" }}>
                   {isLoading ? "..." : `${sApy.toFixed(2)}%`}
                 </div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
-                  {bor !== null && bor > 0 ? fmtUSD(bor) : bor === null ? "—" : "$0.00"}
-                </div>
+                {!isMobile && (
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
+                    {bor !== null && bor > 0 ? fmtUSD(bor) : bor === null ? "—" : "$0.00"}
+                  </div>
+                )}
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: bApy > 0 ? "#FFA500" : "#999999" }}>
                   {isLoading ? "..." : bApy > 0 ? `${bApy.toFixed(2)}%` : "N/A"}
                 </div>
-                <div>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700 }}>
-                    {isLoading ? "..." : `${util.toFixed(1)}%`}
+                {!isMobile && (
+                  <div>
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700 }}>
+                      {isLoading ? "..." : `${util.toFixed(1)}%`}
+                    </div>
+                    <div style={{ marginTop: 4, height: 4, background: "#eeeeee", border: "1px solid #cccccc" }}>
+                      <div style={{ height: "100%", width: `${Math.min(util, 100)}%`, background: util > 80 ? "#FF0000" : util > 60 ? "#FFA500" : "#008000" }} />
+                    </div>
                   </div>
-                  <div style={{ marginTop: 4, height: 4, background: "#eeeeee", border: "1px solid #cccccc" }}>
-                    <div style={{ height: "100%", width: `${Math.min(util, 100)}%`, background: util > 80 ? "#FF0000" : util > 60 ? "#FFA500" : "#008000" }} />
-                  </div>
-                </div>
+                )}
               </div>
             );
           })}
@@ -256,11 +276,11 @@ export default function MarketsPage() {
           </p>
         </div>
 
-        {/* Table */}
-        <div style={{ border: "4px solid #000000", borderTop: "none", background: "#ffffff", position: "relative" }}>
+        {/* Table — horizontal scroll on mobile */}
+        <div className="scroll-x-mobile" style={{ border: "4px solid #000000", borderTop: "none", background: "#ffffff", position: "relative" }}>
           {/* Column headers */}
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr", gap: 8, padding: "10px 24px", background: "#f5f5f5", borderBottom: "3px solid #000000" }}>
-            {["Asset", "Total Supplied", "Supply APY", "Total Borrowed", "Borrow APY", "Utilization"].map(h => (
+          <div style={{ display: "grid", gridTemplateColumns: tableCols, gap: 8, padding: "10px 24px", background: "#f5f5f5", borderBottom: "3px solid #000000" }}>
+            {tableHdrs.map(h => (
               <span key={h} style={colH}>{h}</span>
             ))}
           </div>
@@ -274,8 +294,8 @@ export default function MarketsPage() {
 
           {ARC_NATIVE_TOKENS.map((t, i) => (
             <div key={t.symbol} style={{
-              display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr",
-              gap: 8, padding: "16px 24px", alignItems: "center",
+              display: "grid", gridTemplateColumns: tableCols,
+              gap: 8, padding: isMobile ? "12px 16px" : "16px 24px", alignItems: "center",
               borderBottom: i < ARC_NATIVE_TOKENS.length - 1 ? "2px solid #000000" : "none",
               opacity: 0.4,
             }}>
@@ -283,14 +303,14 @@ export default function MarketsPage() {
                 <TokenIcon symbol={t.symbol} size={28} />
                 <div>
                   <div style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14 }}>{t.symbol}</div>
-                  <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#999999" }}>{t.name}</div>
+                  {!isMobile && <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#999999" }}>{t.name}</div>}
                 </div>
               </div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "#999999" }}>{t.capacity}</div>
+              {!isMobile && <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "#999999" }}>{t.capacity}</div>}
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "#999999" }}>{t.supplyAPY}</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "#999999" }}>—</div>
+              {!isMobile && <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "#999999" }}>—</div>}
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "#999999" }}>{t.borrowAPY}</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "#999999" }}>—</div>
+              {!isMobile && <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "#999999" }}>—</div>}
             </div>
           ))}
         </div>

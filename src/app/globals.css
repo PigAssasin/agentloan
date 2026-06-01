@@ -281,3 +281,14 @@ input[type=number]  { -moz-appearance: textfield; }
 
 /* ── RainbowKit modal — remove rounded corners only ─────── */
 [data-rk] [role="dialog"] { border-radius: 0 !important; }
+
+/* ── Responsive utilities ─────────────────────────────── */
+@media (max-width: 767px) {
+  .hide-mobile  { display: none !important; }
+  .col-1-mobile { grid-template-columns: 1fr !important; }
+  .col-2-mobile { grid-template-columns: 1fr 1fr !important; }
+  .scroll-x-mobile { overflow-x: auto !important; }
+  .pad-mobile { padding: 16px !important; }
+  .text-sm-mobile { font-size: 12px !important; }
+  .stack-mobile { flex-direction: column !important; }
+}

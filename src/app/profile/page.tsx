@@ -11,6 +11,7 @@ import {
   useWalletBalances,
   useReserveData,
 } from "../../hooks/use-lending-pool";
+import { useIsMobile } from "../../hooks/use-is-mobile";
 
 function hfColor(hf: string): string {
   if (hf === "∞") return "#008000";
@@ -38,6 +39,7 @@ const colH: React.CSSProperties = {
 export default function ProfilePage() {
   const [withdrawSymbol, setWithdraw] = useState<string | null>(null);
   const [repaySymbol, setRepay]       = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   const { totalCollateralUSD, totalDebtUSD, availableBorrows, healthFactor } = useUserAccountData();
   const { supply, borrow, refetch: refetchBalances } = useUserTokenBalances();
@@ -54,52 +56,68 @@ export default function ProfilePage() {
   const hfClr = hfColor(healthFactor);
   const hfLbl = hfLabel(healthFactor);
 
+  // 4-col desktop → 2-col mobile for stats
+  const statsCols = isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)";
+
+  // Supplied positions table columns
+  const supplyCols = isMobile ? "2fr 1fr 100px" : "2fr 1fr 1fr 1fr 100px";
+  const supplyHdrs = isMobile ? ["Asset", "Balance", ""] : ["Asset", "Balance", "Supply APY", "Collateral", ""];
+
+  // Borrowed positions table columns
+  const borrowCols = isMobile ? "2fr 1fr 100px" : "2fr 1fr 1fr 100px";
+  const borrowHdrs = isMobile ? ["Asset", "Debt", ""] : ["Asset", "Debt", "Borrow APY", ""];
+
   return (
-    <div style={{ maxWidth: "var(--page-max-width)", margin: "0 auto", padding: "32px 24px" }}>
+    <div style={{ maxWidth: "var(--page-max-width)", margin: "0 auto", padding: isMobile ? "16px 16px" : "32px 24px" }}>
 
       {/* ── Page header ── */}
       <div style={{ marginBottom: 32, borderBottom: "4px solid #000000", paddingBottom: 24 }}>
-        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 48 }}>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: isMobile ? 32 : 48 }}>
           PROFILE
         </h1>
       </div>
 
-      {/* ── Account summary — 4 stats ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 0, marginBottom: 32, border: "4px solid #000000" }}>
+      {/* ── Account summary — 4 stats (2×2 on mobile) ── */}
+      <div style={{ display: "grid", gridTemplateColumns: statsCols, gap: 0, marginBottom: 32, border: "4px solid #000000" }}>
         {[
           { label: "Net Worth",           value: `$${netWorth.toFixed(2)}`,              color: "#000000" },
           { label: "Health Factor",       value: healthFactor,  color: hfClr     },
           { label: "Total Collateral",    value: `$${totalCollateralUSD.toFixed(2)}`,    color: "#000000" },
           { label: "Available to Borrow", value: `$${availableBorrows.toFixed(2)}`,      color: "#000000" },
-        ].map(({ label, value, color }, i) => (
-          <div key={label} style={{
-            padding: "20px 24px",
-            borderRight: i < 3 ? "4px solid #000000" : "none",
-            background: "#ffffff",
-          }}>
-            <div style={{ ...colH, marginBottom: 10 }}>{label}</div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 28, fontWeight: 700, color, lineHeight: 1 }}>
-              {value}
-            </div>
-            {label === "Health Factor" && (
-              <div style={{
-                marginTop: 8,
-                display: "inline-flex",
-                padding: "2px 8px",
-                border: `2px solid ${hfClr}`,
-                fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600,
-                textTransform: "uppercase", letterSpacing: "0.08em", color: hfClr,
-              }}>
-                {hfLbl}
+        ].map(({ label, value, color }, i) => {
+          const isLastInRow = isMobile ? (i % 2 === 1) : (i === 3);
+          const isLastRow   = isMobile ? (i >= 2) : true;
+          return (
+            <div key={label} style={{
+              padding: isMobile ? "14px 16px" : "20px 24px",
+              borderRight:  !isLastInRow ? "4px solid #000000" : "none",
+              borderBottom: isMobile && !isLastRow ? "4px solid #000000" : "none",
+              background: "#ffffff",
+            }}>
+              <div style={{ ...colH, marginBottom: 10 }}>{label}</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: isMobile ? 20 : 28, fontWeight: 700, color, lineHeight: 1 }}>
+                {value}
               </div>
-            )}
-          </div>
-        ))}
+              {label === "Health Factor" && (
+                <div style={{
+                  marginTop: 8,
+                  display: "inline-flex",
+                  padding: "2px 8px",
+                  border: `2px solid ${hfClr}`,
+                  fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600,
+                  textTransform: "uppercase", letterSpacing: "0.08em", color: hfClr,
+                }}>
+                  {hfLbl}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* ── Borrow limit bar ── */}
       {totalDebtUSD > 0 && (
-        <div style={{ border: "3px solid #000000", padding: "16px 24px", marginBottom: 32, background: "#ffffff" }}>
+        <div style={{ border: "3px solid #000000", padding: isMobile ? "14px 16px" : "16px 24px", marginBottom: 32, background: "#ffffff" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
             <span style={{ ...colH }}>Borrow Limit Used</span>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>{limitUsed}%</span>
@@ -130,9 +148,9 @@ export default function ProfilePage() {
             Supplied Positions
           </h4>
         </div>
-        <div style={{ border: "4px solid #000000", borderTop: "none", background: "#ffffff" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 100px", gap: 8, padding: "10px 24px", background: "#f5f5f5", borderBottom: "3px solid #000000" }}>
-            {["Asset", "Balance", "Supply APY", "Collateral", ""].map(h => (
+        <div className="scroll-x-mobile" style={{ border: "4px solid #000000", borderTop: "none", background: "#ffffff" }}>
+          <div style={{ display: "grid", gridTemplateColumns: supplyCols, gap: 8, padding: isMobile ? "10px 16px" : "10px 24px", background: "#f5f5f5", borderBottom: "3px solid #000000" }}>
+            {supplyHdrs.map(h => (
               <span key={h} style={colH}>{h}</span>
             ))}
           </div>
@@ -149,24 +167,28 @@ export default function ProfilePage() {
               const apy = reserves[t.symbol]?.supplyApy ?? 0;
               return (
                 <div key={t.symbol} style={{
-                  display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 100px",
-                  gap: 8, padding: "16px 24px", alignItems: "center",
+                  display: "grid", gridTemplateColumns: supplyCols,
+                  gap: 8, padding: isMobile ? "12px 16px" : "16px 24px", alignItems: "center",
                   borderBottom: i < suppliedPositions.length - 1 ? "2px solid #000000" : "none",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <TokenIcon symbol={t.symbol} size={32} />
                     <div>
                       <div style={{ fontFamily: "var(--font-body)", fontSize: 15, fontWeight: 600 }}>{t.symbol}</div>
-                      <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#999999" }}>{t.name}</div>
+                      {!isMobile && <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#999999" }}>{t.name}</div>}
                     </div>
                   </div>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
                     {t.decimals === 8 ? bal.toFixed(8) : bal.toFixed(2)}
                   </span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "#008000" }}>
-                    {apy.toFixed(2)}%
-                  </span>
-                  <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#008000" }}>Yes</span>
+                  {!isMobile && (
+                    <>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "#008000" }}>
+                        {apy.toFixed(2)}%
+                      </span>
+                      <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#008000" }}>Yes</span>
+                    </>
+                  )}
                   <button className="btn btn-ghost btn-sm" onClick={() => setWithdraw(t.symbol)}>
                     Withdraw
                   </button>
@@ -184,9 +206,9 @@ export default function ProfilePage() {
             Borrowed Positions
           </h4>
         </div>
-        <div style={{ border: "4px solid #000000", borderTop: "none", background: "#ffffff" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 100px", gap: 8, padding: "10px 24px", background: "#f5f5f5", borderBottom: "3px solid #000000" }}>
-            {["Asset", "Debt", "Borrow APY", ""].map(h => (
+        <div className="scroll-x-mobile" style={{ border: "4px solid #000000", borderTop: "none", background: "#ffffff" }}>
+          <div style={{ display: "grid", gridTemplateColumns: borrowCols, gap: 8, padding: isMobile ? "10px 16px" : "10px 24px", background: "#f5f5f5", borderBottom: "3px solid #000000" }}>
+            {borrowHdrs.map(h => (
               <span key={h} style={colH}>{h}</span>
             ))}
           </div>
@@ -203,23 +225,25 @@ export default function ProfilePage() {
               const apy  = reserves[t.symbol]?.borrowApy ?? 0;
               return (
                 <div key={t.symbol} style={{
-                  display: "grid", gridTemplateColumns: "2fr 1fr 1fr 100px",
-                  gap: 8, padding: "16px 24px", alignItems: "center",
+                  display: "grid", gridTemplateColumns: borrowCols,
+                  gap: 8, padding: isMobile ? "12px 16px" : "16px 24px", alignItems: "center",
                   borderBottom: i < borrowedPositions.length - 1 ? "2px solid #000000" : "none",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <TokenIcon symbol={t.symbol} size={32} />
                     <div>
                       <div style={{ fontFamily: "var(--font-body)", fontSize: 15, fontWeight: 600 }}>{t.symbol}</div>
-                      <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#999999" }}>Variable rate</div>
+                      {!isMobile && <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#999999" }}>Variable rate</div>}
                     </div>
                   </div>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
                     {t.decimals === 8 ? debt.toFixed(8) : debt.toFixed(2)}
                   </span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "#FFA500" }}>
-                    {apy.toFixed(2)}%
-                  </span>
+                  {!isMobile && (
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "#FFA500" }}>
+                      {apy.toFixed(2)}%
+                    </span>
+                  )}
                   <button className="btn btn-ghost btn-sm" onClick={() => setRepay(t.symbol)}>
                     Repay
                   </button>
@@ -238,7 +262,7 @@ export default function ProfilePage() {
           </h4>
         </div>
         <div style={{ border: "4px solid #000000", borderTop: "none", background: "#ffffff" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 8, padding: "10px 24px", background: "#f5f5f5", borderBottom: "3px solid #000000" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 8, padding: isMobile ? "10px 16px" : "10px 24px", background: "#f5f5f5", borderBottom: "3px solid #000000" }}>
             {["Asset", "Balance"].map(h => (
               <span key={h} style={colH}>{h}</span>
             ))}
@@ -248,14 +272,14 @@ export default function ProfilePage() {
             return (
               <div key={t.symbol} style={{
                 display: "grid", gridTemplateColumns: "2fr 1fr",
-                gap: 8, padding: "16px 24px", alignItems: "center",
+                gap: 8, padding: isMobile ? "12px 16px" : "16px 24px", alignItems: "center",
                 borderBottom: i < tokenList.length - 1 ? "2px solid #000000" : "none",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <TokenIcon symbol={t.symbol} size={32} />
                   <div>
                     <div style={{ fontFamily: "var(--font-body)", fontSize: 15, fontWeight: 600 }}>{t.symbol}</div>
-                    <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#999999" }}>{t.name}</div>
+                    {!isMobile && <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#999999" }}>{t.name}</div>}
                   </div>
                 </div>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>
@@ -274,15 +298,19 @@ export default function ProfilePage() {
             Risk Parameters
           </h4>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0 }}>
+        <div
+          className="col-1-mobile"
+          style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0 }}
+        >
           {[
             { label: "Liquidation Threshold", value: "75% (xclrBTC) · 85% (xEURC)", note: "Position liquidated below threshold" },
             { label: "Liquidation Penalty",   value: "10% (xclrBTC) · 5% (xEURC)",  note: "Penalty on seized collateral" },
             { label: "Oracle Staleness",       value: "Max 3600s",                    note: "Chainlink price feed freshness" },
           ].map(({ label, value, note }, i) => (
             <div key={label} style={{
-              padding: "20px 24px",
-              borderRight: i < 2 ? "3px solid #000000" : "none",
+              padding: isMobile ? "14px 16px" : "20px 24px",
+              borderRight: !isMobile && i < 2 ? "3px solid #000000" : "none",
+              borderBottom: isMobile && i < 2 ? "3px solid #000000" : "none",
             }}>
               <div style={{ ...colH, marginBottom: 8 }}>{label}</div>
               <div style={{ fontFamily: "var(--font-body)", fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{value}</div>

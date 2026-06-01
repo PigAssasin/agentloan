@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { useIsMobile } from "../../hooks/use-is-mobile";
 
 export function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title?: string }) {
+  const isMobile = useIsMobile();
+
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", h);
@@ -13,14 +16,21 @@ export function Modal({ children, onClose, title }: { children: React.ReactNode;
     <div onClick={onClose} style={{
       position: "fixed", inset: 0, zIndex: 1000,
       background: "rgba(0,0,0,0.6)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      padding: 20,
+      display: "flex",
+      alignItems: isMobile ? "flex-end" : "center",
+      justifyContent: "center",
+      padding: isMobile ? 0 : 20,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        width: "100%", maxWidth: 480,
+        width: "100%",
+        maxWidth: isMobile ? "100%" : 480,
         background: "#ffffff",
         border: "4px solid #000000",
-        padding: 32, position: "relative",
+        borderBottom: isMobile ? "none" : "4px solid #000000",
+        padding: isMobile ? "24px 20px" : 32,
+        position: "relative",
+        /* Slide up on mobile — add a subtle top-rounded feel via larger padding-top */
+        borderTop: "4px solid #000000",
       }}>
         <button onClick={onClose} style={{
           position: "absolute", top: 16, right: 16,
@@ -29,7 +39,7 @@ export function Modal({ children, onClose, title }: { children: React.ReactNode;
           fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14,
         }}>✕</button>
         {title && (
-          <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 28, marginBottom: 24, paddingRight: 40 }}>
+          <h3 style={{ fontFamily: "var(--font-heading)", fontSize: isMobile ? 22 : 28, marginBottom: 24, paddingRight: 40 }}>
             {title.toUpperCase()}
           </h3>
         )}

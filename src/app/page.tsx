@@ -2,6 +2,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ArcBankLogo } from "../components/shared/ArcBankLogo";
+import { useIsMobile } from "../hooks/use-is-mobile";
 
 const HeroCanvas = dynamic(
   () => import("../components/shared/HeroCanvas").then(m => m.HeroCanvas),
@@ -9,6 +10,8 @@ const HeroCanvas = dynamic(
 );
 
 export default function LandingPage() {
+  const isMobile = useIsMobile();
+
   return (
     <div style={{ fontFamily: "var(--font-body)", background: "#ffffff", color: "#000000" }}>
 
@@ -24,17 +27,27 @@ export default function LandingPage() {
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section style={{ borderBottom: "5px solid #000000" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1.1fr", minHeight: 420 }}>
+        <div style={{
+          maxWidth: 1200, margin: "0 auto",
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1.1fr",
+          minHeight: isMobile ? "auto" : 420,
+        }}>
 
           {/* Left — text */}
-          <div style={{ padding: "56px 40px 56px 24px", borderRight: "5px solid #000000", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div style={{
+            padding: isMobile ? "36px 24px" : "56px 40px 56px 24px",
+            borderRight: isMobile ? "none" : "5px solid #000000",
+            borderBottom: isMobile ? "5px solid #000000" : "none",
+            display: "flex", flexDirection: "column", justifyContent: "center",
+          }}>
             <div style={{ display: "inline-block", border: "2px solid #000000", padding: "4px 14px", marginBottom: 32, alignSelf: "flex-start" }}>
               <span style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em" }}>
                 Built on Arc Testnet
               </span>
             </div>
 
-            <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(52px,6vw,96px)", lineHeight: 0.92, marginBottom: 32 }}>
+            <h1 style={{ fontFamily: "var(--font-heading)", fontSize: isMobile ? "clamp(48px,12vw,72px)" : "clamp(52px,6vw,96px)", lineHeight: 0.92, marginBottom: 32 }}>
               LEND<br />BORROW<br />EARN
             </h1>
 
@@ -42,7 +55,7 @@ export default function LandingPage() {
               A decentralized lending protocol on Arc Network. Supply xclrBTC, xEURC, or xUSDC as collateral and borrow xUSDC at variable rates. Powered by Chainlink oracles.
             </p>
 
-            <div style={{ display: "flex", gap: 0 }}>
+            <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
               <Link href="/app" style={{
                 fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14,
                 textTransform: "uppercase", letterSpacing: "0.1em",
@@ -64,25 +77,35 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Right — Bloomberg-style animated canvas */}
-          <div style={{ position: "relative", background: "#000000", display: "flex", alignItems: "stretch" }}>
-            <HeroCanvas />
-          </div>
+          {/* Right — Bloomberg-style animated canvas — hidden on mobile (canvas below text) */}
+          {!isMobile && (
+            <div style={{ position: "relative", background: "#000000", display: "flex", alignItems: "stretch" }}>
+              <HeroCanvas />
+            </div>
+          )}
 
         </div>
       </section>
 
       {/* ── Stats bar ────────────────────────────────────────── */}
       <section style={{ borderBottom: "5px solid #000000" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4,1fr)" }}>
+        <div
+          className="col-2-mobile"
+          style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4,1fr)" }}
+        >
           {[
             { label: "Supported Assets", value: "3",        sub: "xclrBTC, xEURC, xUSDC" },
             { label: "Finality",         value: "<1s",      sub: "Deterministic" },
             { label: "Gas Cost",         value: "$0.01",    sub: "USDC per tx" },
             { label: "Network",          value: "Arc",      sub: "Testnet" },
           ].map(({ label, value, sub }, i) => (
-            <div key={label} style={{ padding: "28px 24px", borderRight: i < 3 ? "4px solid #000000" : "none" }}>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 32, fontWeight: 700, lineHeight: 1, marginBottom: 6 }}>{value}</div>
+            <div key={label} style={{
+              padding: isMobile ? "20px 16px" : "28px 24px",
+              borderRight: !isMobile && i < 3 ? "4px solid #000000" : "none",
+              borderBottom: isMobile && i < 2 ? "4px solid #000000" : "none",
+              borderLeft: isMobile && (i === 1 || i === 3) ? "4px solid #000000" : "none",
+            }}>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: isMobile ? 24 : 32, fontWeight: 700, lineHeight: 1, marginBottom: 6 }}>{value}</div>
               <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999999" }}>{label}</div>
               <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#bbbbbb", marginTop: 4 }}>{sub}</div>
             </div>
@@ -92,12 +115,15 @@ export default function LandingPage() {
 
 
       {/* ── Features ─────────────────────────────────────────── */}
-      <section style={{ borderBottom: "5px solid #000000", padding: "72px 24px" }}>
+      <section style={{ borderBottom: "5px solid #000000", padding: isMobile ? "40px 16px" : "72px 24px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 40, marginBottom: 48 }}>
+          <h2 style={{ fontFamily: "var(--font-heading)", fontSize: isMobile ? 28 : 40, marginBottom: 48 }}>
             HOW IT WORKS
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0, border: "4px solid #000000" }}>
+          <div
+            className="col-1-mobile"
+            style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0, border: "4px solid #000000" }}
+          >
             {[
               {
                 step: "01",
@@ -116,8 +142,9 @@ export default function LandingPage() {
               },
             ].map(({ step, title, desc }, i) => (
               <div key={step} style={{
-                padding: "40px 32px",
-                borderRight: i < 2 ? "4px solid #000000" : "none",
+                padding: isMobile ? "28px 20px" : "40px 32px",
+                borderRight: !isMobile && i < 2 ? "4px solid #000000" : "none",
+                borderBottom: isMobile && i < 2 ? "4px solid #000000" : "none",
               }}>
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: 48, fontWeight: 700, color: "#eeeeee", marginBottom: 16, lineHeight: 1 }}>{step}</div>
                 <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 22, marginBottom: 16 }}>{title.toUpperCase()}</h3>
@@ -129,13 +156,13 @@ export default function LandingPage() {
       </section>
 
       {/* ── Supported Assets ─────────────────────────────────── */}
-      <section style={{ borderBottom: "5px solid #000000", padding: "72px 24px" }}>
+      <section style={{ borderBottom: "5px solid #000000", padding: isMobile ? "40px 16px" : "72px 24px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 40, marginBottom: 48 }}>
+          <h2 style={{ fontFamily: "var(--font-heading)", fontSize: isMobile ? 28 : 40, marginBottom: 48 }}>
             SUPPORTED ASSETS
           </h2>
-          <div style={{ border: "4px solid #000000" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 8, padding: "12px 24px", background: "#000000" }}>
+          <div className="scroll-x-mobile" style={{ border: "4px solid #000000" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 8, padding: "12px 24px", background: "#000000", minWidth: isMobile ? 540 : "auto" }}>
               {["Asset", "Type", "Max LTV", "Liq. Threshold", "Can Borrow"].map(h => (
                 <span key={h} style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "#ffffff" }}>{h}</span>
               ))}
@@ -150,6 +177,7 @@ export default function LandingPage() {
                 gap: 8, padding: "20px 24px", alignItems: "center",
                 borderTop: "3px solid #000000",
                 background: i % 2 === 1 ? "#fafafa" : "#ffffff",
+                minWidth: isMobile ? 540 : "auto",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 32, height: 32, borderRadius: "50%", background: asset.color, border: "2px solid #000000", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontFamily: "var(--font-mono)", fontWeight: 700 }}>
@@ -173,12 +201,15 @@ export default function LandingPage() {
       </section>
 
       {/* ── Technical stack ──────────────────────────────────── */}
-      <section style={{ borderBottom: "5px solid #000000", padding: "72px 24px", background: "#000000", color: "#ffffff" }}>
+      <section style={{ borderBottom: "5px solid #000000", padding: isMobile ? "40px 16px" : "72px 24px", background: "#000000", color: "#ffffff" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 40, marginBottom: 48, color: "#ffffff" }}>
+          <h2 style={{ fontFamily: "var(--font-heading)", fontSize: isMobile ? 28 : 40, marginBottom: 48, color: "#ffffff" }}>
             BUILT WITH
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 0, border: "4px solid #ffffff" }}>
+          <div
+            className="col-1-mobile"
+            style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 0, border: "4px solid #ffffff" }}
+          >
             {[
               { name: "Arc Network",   desc: "L1 blockchain · Chain ID 5042002 · Sub-second finality · USDC gas token",    tag: "BLOCKCHAIN" },
               { name: "Chainlink",     desc: "Price feeds for cirBTC/USD and EURC/USD · Staleness guard max 3600s",         tag: "ORACLE" },
@@ -186,8 +217,9 @@ export default function LandingPage() {
               { name: "Next.js + wagmi", desc: "App Router · TypeScript · wagmi v2 · viem · RainbowKit · TanStack Query",  tag: "FRONTEND" },
             ].map(({ name, desc, tag }, i) => (
               <div key={name} style={{
-                padding: "32px 24px",
-                borderRight: i < 3 ? "4px solid #ffffff" : "none",
+                padding: isMobile ? "24px 20px" : "32px 24px",
+                borderRight: !isMobile && i < 3 ? "4px solid #ffffff" : "none",
+                borderBottom: isMobile && i < 3 ? "4px solid #ffffff" : "none",
               }}>
                 <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999999", marginBottom: 12 }}>{tag}</div>
                 <h4 style={{ fontFamily: "var(--font-heading)", fontSize: 20, color: "#ffffff", marginBottom: 12 }}>{name.toUpperCase()}</h4>
@@ -199,15 +231,15 @@ export default function LandingPage() {
       </section>
 
       {/* ── CTA ──────────────────────────────────────────────── */}
-      <section style={{ borderBottom: "5px solid #000000", padding: "80px 24px", textAlign: "center" }}>
+      <section style={{ borderBottom: "5px solid #000000", padding: isMobile ? "48px 16px" : "80px 24px", textAlign: "center" }}>
         <div style={{ maxWidth: 680, margin: "0 auto" }}>
-          <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 48, marginBottom: 24 }}>
+          <h2 style={{ fontFamily: "var(--font-heading)", fontSize: isMobile ? 32 : 48, marginBottom: 24 }}>
             START LENDING TODAY
           </h2>
           <p style={{ fontFamily: "var(--font-body)", fontSize: 16, color: "#444444", lineHeight: 1.7, marginBottom: 40 }}>
             Connect your wallet, mint free testnet tokens from the ArcBank faucet, and start supplying collateral on Arc Testnet in minutes.
           </p>
-          <div style={{ display: "flex", gap: 0, justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: 0, justifyContent: "center", flexWrap: "wrap" }}>
             <Link href="/app" style={{
               fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 16,
               textTransform: "uppercase", letterSpacing: "0.08em",
@@ -231,9 +263,12 @@ export default function LandingPage() {
       </section>
 
       {/* ── Footer ───────────────────────────────────────────── */}
-      <footer style={{ padding: "40px 24px", borderTop: "5px solid #000000" }}>
+      <footer style={{ padding: isMobile ? "32px 16px" : "40px 24px", borderTop: "5px solid #000000" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 48, marginBottom: 40 }}>
+          <div
+            className="col-1-mobile"
+            style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: isMobile ? 24 : 48, marginBottom: 40 }}
+          >
 
             {/* Brand */}
             <div>
@@ -298,7 +333,14 @@ export default function LandingPage() {
           </div>
 
           {/* Bottom bar */}
-          <div style={{ borderTop: "3px solid #000000", paddingTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{
+            borderTop: "3px solid #000000", paddingTop: 24,
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            justifyContent: "space-between",
+            alignItems: isMobile ? "flex-start" : "center",
+            gap: isMobile ? 8 : 0,
+          }}>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999" }}>
               ArcBank · Arc Testnet (Chain ID: 5042002) · Not audited · Testnet only
             </span>
