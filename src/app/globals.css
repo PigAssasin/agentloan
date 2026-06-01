@@ -274,5 +274,10 @@ input[type=number]  { -moz-appearance: textfield; }
   50%       { opacity: 0.3; }
 }
 
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
+}
+
 /* ── RainbowKit modal — remove rounded corners only ─────── */
 [data-rk] [role="dialog"] { border-radius: 0 !important; }

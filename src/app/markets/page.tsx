@@ -1,8 +1,97 @@
 "use client";
 
 import { TokenIcon }    from "../../components/shared/TokenIcon";
-import { useReserveData, TOKENS, fmtUSD } from "../../hooks/use-lending-pool";
-import { useMarketPrices } from "../../hooks/use-market-prices";
+import { useReserveData, TOKENS, fmtUSD, TokenSymbol } from "../../hooks/use-lending-pool";
+import { useMarketPrices, MarketPrices } from "../../hooks/use-market-prices";
+
+// ── Continuously scrolling price ticker ───────────────────
+function PriceTicker({
+  livePrice, reserves, tokenList,
+}: {
+  livePrice: MarketPrices;
+  reserves: Record<string, any>;
+  tokenList: typeof TOKENS[TokenSymbol][];
+}) {
+  const items = [
+    ...tokenList.map(t => {
+      const r = reserves[t.symbol];
+      const price = t.symbol === "xclrBTC"
+        ? livePrice.BTC
+        : t.symbol === "xEURC"
+        ? livePrice.EUR
+        : livePrice.USDC;
+      const apy = r?.borrowApy ?? r?.supplyApy ?? 0;
+      return {
+        label: t.symbol,
+        price: price ? (t.symbol === "xclrBTC"
+          ? `$${price.toLocaleString("en-US")}`
+          : `$${price.toFixed(4)}`) : "—",
+        apy: apy > 0 ? `${apy.toFixed(2)}% APY` : null,
+      };
+    }),
+    // Placeholder for future tokens
+    { label: "EURC", price: livePrice.EUR ? `$${livePrice.EUR.toFixed(4)}` : "—", apy: null },
+    { label: "USDC", price: "$1.0000", apy: null },
+  ];
+
+  // Duplicate items for seamless loop
+  const allItems = [...items, ...items, ...items];
+
+  return (
+    <div style={{
+      marginBottom: 32,
+      border: "3px solid #000",
+      background: "#000",
+      overflow: "hidden",
+      position: "relative",
+      height: 40,
+    }}>
+      {/* LIVE badge */}
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0, zIndex: 2,
+        background: "#000", borderRight: "2px solid #333",
+        display: "flex", alignItems: "center", gap: 6, padding: "0 14px",
+      }}>
+        <div style={{
+          width: 6, height: 6, borderRadius: "50%",
+          background: livePrice.BTC ? "#00ff88" : "#555",
+          animation: livePrice.BTC ? "pulse 2s infinite" : "none",
+        }} />
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: "0.1em" }}>
+          LIVE
+        </span>
+      </div>
+
+      {/* Scrolling track */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        height: "100%",
+        paddingLeft: 68,
+        animation: "ticker-scroll 40s linear infinite",
+        whiteSpace: "nowrap",
+        width: "max-content",
+      }}>
+        {allItems.map((item, i) => (
+          <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 10, marginRight: 48 }}>
+            <span style={{ fontFamily: "var(--font-body)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#555" }}>
+              {item.label}
+            </span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "#00ff88" }}>
+              {item.price}
+            </span>
+            {item.apy && (
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#FFA500" }}>
+                {item.apy}
+              </span>
+            )}
+            <span style={{ color: "#333", fontSize: 10 }}>·</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const ARC_NATIVE_TOKENS = [
   {
@@ -51,27 +140,8 @@ export default function MarketsPage() {
   return (
     <div style={{ maxWidth: "var(--page-max-width)", margin: "0 auto", padding: "32px 24px" }}>
 
-      {/* Live price ticker */}
-      <div style={{ display: "flex", gap: 0, marginBottom: 32, border: "3px solid #000000", background: "#000000" }}>
-        {[
-          { label: "BTC/USD", value: livePrice.BTC ? `$${livePrice.BTC.toLocaleString("en-US")}` : "—" },
-          { label: "EUR/USD", value: livePrice.EUR ? `$${livePrice.EUR.toFixed(4)}` : "—" },
-          { label: "USDC/USD", value: "$1.0000" },
-          { label: "LAST UPDATE", value: livePrice.updatedAt ? livePrice.updatedAt.toLocaleTimeString() : "—" },
-        ].map(({ label, value }, i) => (
-          <div key={label} style={{ flex: 1, padding: "10px 20px", borderRight: i < 3 ? "2px solid #333" : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontFamily: "var(--font-body)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#666" }}>{label}</span>
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: i === 3 ? "#666" : "#00ff88" }}>{value}</span>
-          </div>
-        ))}
-        <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: livePrice.BTC ? "#00ff88" : "#666",
-            animation: livePrice.BTC ? "pulse 2s infinite" : "none" }} />
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: livePrice.BTC ? "#00ff88" : "#666" }}>
-            {livePrice.BTC ? "LIVE" : "—"}
-          </span>
-        </div>
-      </div>
+      {/* Scrolling price ticker */}
+      <PriceTicker livePrice={livePrice} reserves={reserves} tokenList={tokenList} />
 
       {/* Header */}
       <div style={{ marginBottom: 32, borderBottom: "4px solid #000000", paddingBottom: 24 }}>
