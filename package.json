@@ -13,7 +13,8 @@
     "agent:run": "DRY_RUN=false TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node agents/liquidation-bot.ts",
     "agent:register": "TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node scripts/register-agent.ts",
     "agent:circle-setup": "TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node scripts/circle-setup.ts",
-    "signal:register": "TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node scripts/register-signal-agent.ts"
+    "signal:register": "TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node scripts/register-signal-agent.ts",
+    "wallet:new": "node -e \"const {generatePrivateKey,privateKeyToAccount}=require('./node_modules/viem/accounts');const pk=generatePrivateKey();const acc=privateKeyToAccount(pk);console.log(\"Private Key:\",pk);console.log(\"Address:\",acc.address);\""
   },
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^10.6.0",
