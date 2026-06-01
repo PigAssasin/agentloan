@@ -6,7 +6,7 @@
 import { ethers } from "hardhat";
 import { ARC_TESTNET_CONTRACTS } from "../config/contracts";
 
-const OLD_POOL = "0x893D0223f63A06CFf83F0e9ef4d58af1Ad2B95fb";
+const OLD_POOL = "0xC0aC41e7ACF5a4c150CbF7236F7E0f8e95aD80ec";
 const NEW_POOL = ARC_TESTNET_CONTRACTS.LENDING_POOL;
 
 const TOKENS = [
