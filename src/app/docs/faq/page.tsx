@@ -62,6 +62,30 @@ const FAQS = [
     q: "Why does WalletConnect not work?",
     a: "WalletConnect is disabled unless a valid project ID is configured. MetaMask injected wallet works fully without WalletConnect.",
   },
+  {
+    q: "What is the Liquidation Bot and who runs it?",
+    a: "The Liquidation Bot is an autonomous program that monitors all borrower positions every ~15 seconds. When a position's Health Factor drops below 1.0, the bot automatically liquidates it — repaying up to 50% of the debt and receiving collateral + 5% bonus. It runs 24/7 on a dedicated VPS via PM2, and is registered on-chain as an AI agent via Arc ERC-8004 (Agent ID #30907).",
+  },
+  {
+    q: "What is the Guardian Agent?",
+    a: "The Guardian Agent runs in your browser and monitors your personal Health Factor. You set a threshold (e.g. 1.5). When your HF drops below it, an alert banner appears in the AGENTS tab showing exactly how much xUSDC you need to repay to restore safety. It does not execute transactions automatically — you confirm the repay yourself.",
+  },
+  {
+    q: "What is the Yield Optimizer?",
+    a: "The Yield Optimizer monitors the xUSDC supply APY and notifies you when it exceeds your target threshold. When the rate crosses your target, a deposit recommendation appears. APY is variable — it rises with utilization. Supply APY = Borrow APY × utilization rate.",
+  },
+  {
+    q: "Can the Liquidation Bot liquidate me?",
+    a: "Yes — if your Health Factor drops below 1.0, the bot will liquidate up to 50% of your debt position. You lose some collateral but keep the rest. To avoid this: use the Guardian Agent to set an alert threshold above 1.0, and repay debt when the alert fires.",
+  },
+  {
+    q: "How do I know if the bot is running?",
+    a: "Go to Dashboard → AGENTS tab. The LIQUIDATION BOT panel shows LIVE status, the bot wallet address, current balances (xUSDC, xEURC, xclrBTC), and a log of recent liquidations in the last 10,000 blocks. The panel refreshes every 30 seconds.",
+  },
+  {
+    q: "Why is Supply APY showing 0.00%?",
+    a: "Supply APY = Borrow APY × utilization rate. When utilization is near zero (few active borrows vs total pool size), supply APY is near zero. As more users borrow, utilization rises and both borrow and supply APY increase. Try the Yield Optimizer to get notified when APY crosses your target.",
+  },
 ];
 
 export default function FaqPage() {

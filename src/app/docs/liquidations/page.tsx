@@ -6,7 +6,7 @@ export default function LiquidationsPage() {
       title="Liquidations"
       description="When a borrower's Health Factor falls below 1.0, anyone can liquidate their position to earn a bonus."
       prev={{ label: "APY & Interest", href: "/docs/apy" }}
-      next={{ label: "Smart Contracts", href: "/docs/contracts" }}
+      next={{ label: "DeFi Agents", href: "/docs/agents" }}
     >
       <InfoBox title="Open Liquidations">
         ArcBank uses open liquidations — any wallet can liquidate any undercollateralized position.
