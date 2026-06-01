@@ -52,7 +52,7 @@ export default function LandingPage() {
             </h1>
 
             <p style={{ fontFamily: "var(--font-body)", fontSize: 16, lineHeight: 1.75, color: "#444444", marginBottom: 44, maxWidth: 400 }}>
-              A decentralized lending protocol on Arc Network. Supply xclrBTC, xEURC, or xUSDC as collateral and borrow xUSDC at variable rates. Powered by Chainlink oracles.
+              A decentralized lending protocol on Arc Network. Supply xclrBTC, xEURC, or xUSDC as collateral and borrow xUSDC at variable rates. Powered by Pyth Network real-time oracles and autonomous DeFi agents.
             </p>
 
             <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
@@ -208,22 +208,23 @@ export default function LandingPage() {
           </h2>
           <div
             className="col-1-mobile"
-            style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 0, border: "4px solid #ffffff" }}
+            style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(5,1fr)", gap: 0, border: "4px solid #ffffff" }}
           >
             {[
-              { name: "Arc Network",   desc: "L1 blockchain · Chain ID 5042002 · Sub-second finality · USDC gas token",    tag: "BLOCKCHAIN" },
-              { name: "Chainlink",     desc: "Price feeds for cirBTC/USD and EURC/USD · Staleness guard max 3600s",         tag: "ORACLE" },
-              { name: "Solidity 0.8", desc: "Smart contracts · OpenZeppelin · ReentrancyGuard · Pausable · Custom errors", tag: "CONTRACTS" },
-              { name: "Next.js + wagmi", desc: "App Router · TypeScript · wagmi v2 · viem · RainbowKit · TanStack Query",  tag: "FRONTEND" },
+              { name: "Arc Network",    desc: "L1 · Chain ID 5042002 · ~0.48s blocks · USDC as native gas token",               tag: "BLOCKCHAIN" },
+              { name: "Pyth Network",   desc: "Pull oracle · BTC/EUR/USDC real-time feeds · Updated every 15s by bot",           tag: "ORACLE" },
+              { name: "Solidity 0.8",   desc: "OpenZeppelin · ReentrancyGuard · Pausable · Custom errors · viaIR · 50 tests",    tag: "CONTRACTS" },
+              { name: "Next.js + wagmi",desc: "App Router · TypeScript · wagmi v2 · viem · RainbowKit · TanStack Query",         tag: "FRONTEND" },
+              { name: "DeFi Agents",    desc: "Liquidation Bot (PM2 VPS · watchBlocks · Multicall3) · Arc ERC-8004 ID #30907",   tag: "AGENTS" },
             ].map(({ name, desc, tag }, i) => (
               <div key={name} style={{
-                padding: isMobile ? "24px 20px" : "32px 24px",
-                borderRight: !isMobile && i < 3 ? "4px solid #ffffff" : "none",
-                borderBottom: isMobile && i < 3 ? "4px solid #ffffff" : "none",
+                padding: isMobile ? "24px 20px" : "32px 20px",
+                borderRight: !isMobile && i < 4 ? "4px solid #ffffff" : "none",
+                borderBottom: isMobile && i < 4 ? "4px solid #ffffff" : "none",
               }}>
                 <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999999", marginBottom: 12 }}>{tag}</div>
-                <h4 style={{ fontFamily: "var(--font-heading)", fontSize: 20, color: "#ffffff", marginBottom: 12 }}>{name.toUpperCase()}</h4>
-                <p style={{ fontFamily: "var(--font-body)", fontSize: 13, lineHeight: 1.6, color: "#aaaaaa" }}>{desc}</p>
+                <h4 style={{ fontFamily: "var(--font-heading)", fontSize: 18, color: "#ffffff", marginBottom: 12 }}>{name.toUpperCase()}</h4>
+                <p style={{ fontFamily: "var(--font-body)", fontSize: 12, lineHeight: 1.6, color: "#aaaaaa" }}>{desc}</p>
               </div>
             ))}
           </div>
