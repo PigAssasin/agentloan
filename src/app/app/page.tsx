@@ -1,16 +1,27 @@
 "use client";
 
+import { useState }           from "react";
 import { HealthFactorBanner } from "../../components/dashboard/HealthFactorBanner";
 import { SupplyPanel }        from "../../components/dashboard/SupplyPanel";
 import { BorrowPanel }        from "../../components/dashboard/BorrowPanel";
+import { AgentsTab }          from "../../components/agents/AgentsTab";
 import { useUserAccountData } from "../../hooks/use-lending-pool";
 import { useIsMobile }        from "../../hooks/use-is-mobile";
 
-export default function DashboardPage() {
-  const { totalCollateralUSD, totalDebtUSD, healthFactorRaw, healthFactor: hfString } = useUserAccountData();
-  const isMobile = useIsMobile();
+const TABS = ["POSITIONS", "AGENTS"] as const;
+type Tab = typeof TABS[number];
 
-  const netWorth = totalCollateralUSD - totalDebtUSD;
+export default function DashboardPage() {
+  const {
+    totalCollateralUSD,
+    totalDebtUSD,
+    healthFactorRaw,
+    healthFactor: hfString,
+  } = useUserAccountData();
+
+  const isMobile  = useIsMobile();
+  const [tab, setTab] = useState<Tab>("POSITIONS");
+  const netWorth  = totalCollateralUSD - totalDebtUSD;
 
   return (
     <div style={{ maxWidth: "var(--page-max-width)", margin: "0 auto", padding: isMobile ? "16px 16px" : "32px 24px" }}>
@@ -18,13 +29,7 @@ export default function DashboardPage() {
       {/* Stats row */}
       <div
         className="col-1-mobile"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3,1fr)",
-          gap: 0,
-          marginBottom: 32,
-          border: "4px solid #000000",
-        }}
+        style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0, marginBottom: 32, border: "4px solid #000000" }}
       >
         {[
           { label: "Net Worth",      value: `$${netWorth.toFixed(2)}` },
@@ -49,13 +54,30 @@ export default function DashboardPage() {
 
       <HealthFactorBanner healthFactor={healthFactorRaw} hfString={hfString} />
 
-      <div
-        className="col-1-mobile"
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
-      >
-        <SupplyPanel />
-        <BorrowPanel />
+      {/* Tab bar */}
+      <div style={{ display: "flex", borderBottom: "3px solid #000", marginBottom: 24 }}>
+        {TABS.map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            fontFamily: "var(--font-heading)", fontSize: 13,
+            padding: "10px 20px",
+            background: tab === t ? "#000" : "transparent",
+            color:      tab === t ? "#fff" : "#000",
+            border: "none", cursor: "pointer",
+            borderBottom: tab === t ? "3px solid #000" : "none",
+            marginBottom: tab === t ? "-3px" : 0,
+          }}>
+            {t}
+          </button>
+        ))}
       </div>
+
+      {tab === "POSITIONS" && (
+        <div className="col-1-mobile" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <SupplyPanel />
+          <BorrowPanel />
+        </div>
+      )}
+      {tab === "AGENTS" && <AgentsTab />}
     </div>
   );
 }

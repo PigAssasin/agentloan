@@ -41,7 +41,7 @@ export async function updateOraclePrices(wallet: WalletClient): Promise<void> {
     functionName: "updatePrices",
     args:         [updateData],
     value:        fee,
-  });
+  } as any);
 
   await publicClient.waitForTransactionReceipt({ hash });
 }

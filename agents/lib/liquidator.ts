@@ -99,13 +99,13 @@ export async function executeLiquidation(
     address: debtToken, abi: MockERC20ABI as any,
     functionName: "approve",
     args: [BOT_CONFIG.LENDING_POOL, plan.debtAmount],
-  });
+  } as any);
 
   const hash = await wallet.writeContract({
     address: BOT_CONFIG.LENDING_POOL, abi: LendingPoolABI as any,
     functionName: "liquidate",
     args: [position.address, debtToken, plan.collToken, plan.debtAmount],
-  });
+  } as any);
 
   await publicClient.waitForTransactionReceipt({ hash });
   console.log(`    ✅ ${hash}`);
