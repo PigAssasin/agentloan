@@ -38,6 +38,10 @@ const chain = {
 
 const client = createPublicClient({ chain, transport: http(RPC_URL) });
 
+// Load at module level (not inside async function)
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const LendingPoolABI = require("/root/arcbank/src/lib/abi-lending-pool.json");
+
 const MC3_ABI = [{
   name: "aggregate3", type: "function", stateMutability: "view",
   inputs: [{ name: "calls", type: "tuple[]", components: [
@@ -95,10 +99,6 @@ async function scanPositions() {
     ] as Address[];
     if (borrowers.length === 0) { cachedSignals = []; lastScanAt = Date.now(); return; }
 
-    // Load ABI from arcbank (same VPS)
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const LendingPoolABI = require("/root/arcbank/src/lib/abi-lending-pool.json");
-
     const calls = borrowers.map(u => ({
       target: POOL, allowFailure: true,
       callData: encodeFunctionData({ abi: LendingPoolABI, functionName: "getUserAccountData", args: [u] }),
@@ -136,7 +136,7 @@ async function scanPositions() {
       console.log(`[scan #${scanCount}] ${signals.length} signal(s) | HF: ${signals.map(s => s.healthFactor).join(", ")}`);
     }
   } catch (e: any) {
-    console.error("Scan error:", (e.message ?? "").slice(0, 80));
+    console.error("Scan error:", (e.message ?? String(e)).slice(0, 200));
   }
 }
 
