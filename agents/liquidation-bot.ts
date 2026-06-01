@@ -44,6 +44,7 @@ import { notify, liquidationMessage }  from "./lib/notifier";
 import { checkAndRefill }              from "./lib/auto-refill";
 import { isCircleEnabled, executeWithStrategy, getBotBalanceAddress } from "./lib/execute-strategy";
 import { createLiquidationJob, submitLiquidationProof, closeJob, getJobId } from "./lib/job-manager";
+import { fetchSignals } from "./lib/signal-client";
 
 // Wrap oracle update with timeout — prevents bot from hanging if tx stalls
 async function safeUpdateOracle(wallet: ReturnType<typeof createBotWallet>): Promise<void> {
@@ -64,8 +65,10 @@ async function main() {
   console.log(`   Execution: ${isCircleEnabled() ? "Circle SCA (gas sponsored, no private key)" : "Private key wallet"}`);
   console.log(`   Started: ${new Date().toISOString()}`);
 
-  const botAddr = await getBotBalanceAddress();
-  console.log(`   Wallet:  ${botAddr}\n`);
+  const botAddr    = await getBotBalanceAddress();
+  const signalUrl  = process.env.SIGNAL_AGENT_URL ?? "http://localhost:3001";
+  console.log(`   Wallet:  ${botAddr}`);
+  console.log(`   Signals: ${signalUrl}\n`);
 
   // Keep private key wallet for oracle updates (needs native USDC for Pyth fee)
   const pkWallet = (() => {
@@ -99,9 +102,42 @@ async function main() {
           return;
         }
 
-        // ── Step 1.5: Auto-refill gas if low — only needed for private key wallet
-        // Circle Gas Station handles gas automatically when Circle is enabled
+        // ── Step 1.5: Auto-refill gas (private key wallet only)
         if (!isCircleEnabled()) await checkAndRefill(botAddr);
+
+        // ── Step 1.6: Priority signals from Signal Agent (best-effort) ────
+        // 3x faster scan than Multicall3 — 15-30s head start on liquidations
+        // Falls back silently if Signal Agent is offline or payment fails
+        if (pkWallet && blockCount % 4 === 1) {
+          try {
+            const signals = await fetchSignals(pkWallet);
+            if (signals.length > 0) {
+              const WAD = 10n ** 18n;
+              const priorityPos = signals
+                .filter(s => parseFloat(s.healthFactor) < 1.0)
+                .map(s => ({
+                  address:            s.borrower as `0x${string}`,
+                  healthFactor:       BigInt(Math.floor(parseFloat(s.healthFactor) * 1e18)),
+                  totalDebtUSD:       BigInt(Math.floor(parseFloat(s.totalDebtUSD) * 1e18)),
+                  totalCollateralUSD: 0n,
+                }));
+              if (priorityPos.length > 0) {
+                console.log(`\n  ⚡ [block ${block.number}] ${priorityPos.length} priority signal(s)`);
+                for (const pos of priorityPos) {
+                  const txHash = await executeWithStrategy(pos, botAddr as `0x${string}`);
+                  if (txHash) {
+                    const jobId = getJobId(pos.address);
+                    if (jobId !== null && pkWallet) {
+                      await submitLiquidationProof(jobId, txHash as `0x${string}`, pkWallet).catch(() => {});
+                      closeJob(pos.address);
+                    }
+                    await notify(liquidationMessage(pos.address, formatUnits(pos.totalDebtUSD / 2n, 18), BOT_CONFIG.DEBT_TOKEN, txHash));
+                  }
+                }
+              }
+            }
+          } catch { /* silent — fallback to Multicall3 below */ }
+        }
 
         // ── Step 2: Update oracle if stale ─────────────────────────────────
         // Oracle update uses private key wallet (needs native USDC for Pyth fee)
