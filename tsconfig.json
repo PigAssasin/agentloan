@@ -40,6 +40,8 @@
     "scripts",
     "contracts",
     "test",
+    "agents",
+    "signal-agent",
     "hardhat.config.ts"
   ]
 }

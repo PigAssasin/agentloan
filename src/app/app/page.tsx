@@ -6,10 +6,11 @@ import { SupplyPanel }        from "../../components/dashboard/SupplyPanel";
 import { BorrowPanel }        from "../../components/dashboard/BorrowPanel";
 import { AgentsTab }          from "../../components/agents/AgentsTab";
 import { JobsTab }            from "../../components/agents/JobsTab";
+import { SignalMarketTab }   from "../../components/agents/SignalMarketTab";
 import { useUserAccountData } from "../../hooks/use-lending-pool";
 import { useIsMobile }        from "../../hooks/use-is-mobile";
 
-const TABS = ["POSITIONS", "AGENTS", "JOBS"] as const;
+const TABS = ["POSITIONS", "AGENTS", "JOBS", "SIGNAL"] as const;
 type Tab = typeof TABS[number];
 
 export default function DashboardPage() {
@@ -80,6 +81,7 @@ export default function DashboardPage() {
       )}
       {tab === "AGENTS" && <AgentsTab />}
       {tab === "JOBS"   && <JobsTab />}
+      {tab === "SIGNAL" && <SignalMarketTab />}
     </div>
   );
 }
