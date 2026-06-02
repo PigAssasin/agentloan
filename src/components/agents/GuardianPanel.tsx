@@ -4,7 +4,7 @@ import { useAccount }          from "wagmi";
 import { useUserAccountData }  from "@/hooks/use-lending-pool";
 
 const MAX_HF      = 2n ** 256n - 1n;
-const STORAGE_KEY = "arcbank_guardian_threshold";
+const STORAGE_KEY = "agentloan_guardian_threshold";
 
 function fmtHF(hf: bigint): string {
   if (hf === MAX_HF) return "∞";

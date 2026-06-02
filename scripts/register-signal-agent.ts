@@ -31,7 +31,7 @@ async function main() {
 
   const agentId = await registerAgent(
     wallet,
-    "https://arcbank.vercel.app/agents/signal-agent.json",
+    "https://agentloan.vercel.app/agents/signal-agent.json",
   );
 
   console.log("\n✅ Signal Agent registered on Arc ERC-8004!");

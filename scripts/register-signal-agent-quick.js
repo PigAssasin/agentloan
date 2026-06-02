@@ -24,7 +24,7 @@ async function main() {
     address:      IDENTITY,
     abi:          ABI,
     functionName: 'register',
-    args:         ['https://arcbank.vercel.app/agents/signal-agent.json'],
+    args:         ['https://agentloan.vercel.app/agents/signal-agent.json'],
   });
   console.log('TX:', hash);
 

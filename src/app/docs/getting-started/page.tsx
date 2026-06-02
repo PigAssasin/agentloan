@@ -9,7 +9,7 @@ export default function GettingStartedPage() {
       next={{ label: "How to Supply", href: "/docs/supply" }}
     >
       <InfoBox title="Testnet Only">
-        ArcBank runs exclusively on <strong>Arc Testnet</strong> (Chain ID: 5042002).
+        AgentLoan runs exclusively on <strong>Arc Testnet</strong> (Chain ID: 5042002).
         All tokens are testnet assets with no real-world value. You will need MetaMask or a compatible EVM wallet.
       </InfoBox>
 
@@ -40,8 +40,8 @@ export default function GettingStartedPage() {
         <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer" style={{ color: "#000", fontWeight: 600 }}>faucet.circle.com</a>.
       </Step>
 
-      <Step n={4} title="Get Test Tokens from ArcBank Faucet">
-        Visit the <Link href="/faucet" style={{ color: "#000", fontWeight: 600 }}>ArcBank Faucet</Link> to mint testnet tokens:
+      <Step n={4} title="Get Test Tokens from AgentLoan Faucet">
+        Visit the <Link href="/faucet" style={{ color: "#000", fontWeight: 600 }}>AgentLoan Faucet</Link> to mint testnet tokens:
         <ul style={{ marginTop: 8, paddingLeft: 20, lineHeight: 2 }}>
           <li><strong>10,000 xUSDC</strong> — stablecoin for borrowing and collateral</li>
           <li><strong>10,000 xEURC</strong> — euro stablecoin collateral</li>
@@ -57,7 +57,7 @@ export default function GettingStartedPage() {
 
       <WarnBox>
         <strong>⚠ If you see "Wrong Network"</strong> in the navbar, click it and switch to Arc Testnet in MetaMask.
-        ArcBank only works on Arc Testnet (Chain ID: 5042002).
+        AgentLoan only works on Arc Testnet (Chain ID: 5042002).
       </WarnBox>
     </DocPage>
   );

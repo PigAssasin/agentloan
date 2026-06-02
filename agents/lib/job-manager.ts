@@ -39,7 +39,7 @@ export async function createLiquidationJob(
 
   try {
     const expiration = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour TTL
-    const description = `Liquidate ${borrower} on ArcBank`;
+    const description = `Liquidate ${borrower} on AgentLoan`;
 
     const hash = await wallet.writeContract({
       address:      ERC8183_ADDRESS,

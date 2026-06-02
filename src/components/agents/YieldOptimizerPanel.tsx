@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useAccount }          from "wagmi";
 import { useReserveData }      from "@/hooks/use-lending-pool";
 
-const STORAGE_KEY = "arcbank_yield_threshold";
+const STORAGE_KEY = "agentloan_yield_threshold";
 
 export function YieldOptimizerPanel() {
   const { isConnected } = useAccount();

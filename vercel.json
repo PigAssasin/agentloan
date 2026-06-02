@@ -1,5 +1,5 @@
 {
-  "name": "arcbank",
+  "name": "agentloan",
   "framework": "nextjs",
   "installCommand": "npm install --legacy-peer-deps",
   "buildCommand": "next build --webpack",

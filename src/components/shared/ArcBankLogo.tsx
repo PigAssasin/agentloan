@@ -4,7 +4,7 @@ interface Props {
   style?: React.CSSProperties;
 }
 
-export function ArcBankLogo({ size = 32, color = "#000000", style }: Props) {
+export function AgentLoanLogo({ size = 32, color = "#000000", style }: Props) {
   // Parabola spans y=12..36 in a 40-wide canvas.
   // viewBox cropped to y=10..38 so there's no dead whitespace top/bottom —
   // flex alignItems:center will land the visual arch exactly on the text midline.

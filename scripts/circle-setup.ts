@@ -1,5 +1,5 @@
 /**
- * One-time Circle wallet setup for ArcBank Liquidation Bot.
+ * One-time Circle wallet setup for AgentLoan Liquidation Bot.
  *
  * Run: npm run agent:circle-setup
  *

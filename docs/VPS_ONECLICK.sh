@@ -1,10 +1,10 @@
 #!/bin/bash
-# ArcBank Bot — One-click deploy script
-# Run on VPS: bash <(curl -s https://raw.githubusercontent.com/PigAssasin/arcbank/main/docs/VPS_ONECLICK.sh)
+# AgentLoan Bot — One-click deploy script
+# Run on VPS: bash <(curl -s https://raw.githubusercontent.com/PigAssasin/agentloan/main/docs/VPS_ONECLICK.sh)
 # OR: paste this entire script into the terminal
 
 set -e
-echo "=== ArcBank Bot Deploy ==="
+echo "=== AgentLoan Bot Deploy ==="
 
 # 1. Clone or update repo
 if [ -d "/root/arcbank/.git" ]; then
@@ -13,7 +13,7 @@ if [ -d "/root/arcbank/.git" ]; then
 else
   echo "Cloning repo..."
   rm -rf /root/arcbank
-  git clone https://github.com/PigAssasin/arcbank.git /root/arcbank
+  git clone https://github.com/PigAssasin/agentloan.git /root/arcbank
 fi
 
 cd /root/arcbank
@@ -45,7 +45,7 @@ timeout 15 DRY_RUN=true TS_NODE_PROJECT=tsconfig.hardhat.json \
   npx ts-node agents/liquidation-bot.ts 2>&1 | head -20 || true
 
 echo ""
-echo "=== Deploy complete! ==="
+echo "=== AgentLoan deploy complete! ==="
 echo ""
 echo "Next steps:"
 echo "  1. Edit /root/arcbank/.env.local — set BOT_PRIVATE_KEY and DRY_RUN=false"

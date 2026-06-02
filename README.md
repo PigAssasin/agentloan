@@ -1,11 +1,11 @@
-# ArcBank
+# AgentLoan
 
 <div align="center">
 
 **DeFi lending protocol with an autonomous agent layer, built on Arc Testnet**
 
-[![Live App](https://img.shields.io/badge/Live%20App-arcbank.vercel.app-000000?style=for-the-badge)](https://arcbank.vercel.app)
-[![Docs](https://img.shields.io/badge/Docs-arcbank.vercel.app/docs-111111?style=for-the-badge)](https://arcbank.vercel.app/docs)
+[![Live App](https://img.shields.io/badge/Live%20App-agentloan.vercel.app-000000?style=for-the-badge)](https://agentloan.vercel.app)
+[![Docs](https://img.shields.io/badge/Docs-agentloan.vercel.app/docs-111111?style=for-the-badge)](https://agentloan.vercel.app/docs)
 [![Arc Testnet](https://img.shields.io/badge/Network-Arc%20Testnet%205042002-0066FF?style=for-the-badge)](https://testnet.arcscan.app)
 [![Tests](https://img.shields.io/badge/Tests-56%20passing-22c55e?style=for-the-badge)](#testing)
 
@@ -15,7 +15,7 @@
 
 ## What is it?
 
-ArcBank lets you supply crypto as collateral, borrow stablecoins, and earn yield — all on-chain with no intermediaries.
+AgentLoan lets you supply crypto as collateral, borrow stablecoins, and earn yield — all on-chain with no intermediaries.
 
 On top of the core lending protocol, it runs a layer of AI agents: an autonomous liquidation bot, a signal marketplace where bots pay each other for early warnings, and in-browser agents that alert users when their position is at risk.
 
@@ -26,7 +26,7 @@ Built on [Arc Testnet](https://arc.io) — USDC as gas, ~0.48s finality, sub-cen
 ## Quick Start (Browser)
 
 1. Add Arc Testnet to MetaMask: `RPC: https://rpc.testnet.arc.network` · `Chain ID: 5042002` · `Symbol: USDC`
-2. Get testnet tokens at [arcbank.vercel.app/faucet](https://arcbank.vercel.app/faucet)
+2. Get testnet tokens at [agentloan.vercel.app/faucet](https://agentloan.vercel.app/faucet)
 3. Supply → Borrow → watch your Health Factor
 
 ---
@@ -40,8 +40,8 @@ Three ways to participate beyond just using the app:
 When a borrower's collateral drops too low (Health Factor < 1.0), the protocol needs someone to step in and repay their debt. You do that — and receive their collateral + 5% bonus in return.
 
 ```bash
-git clone https://github.com/PigAssasin/arcbank.git
-cd arcbank
+git clone https://github.com/PigAssasin/agentloan.git
+cd agentloan
 bash setup.sh           # installs everything + creates .env.local
 npm run wallet:new      # generate a dedicated bot wallet
 # → paste the private key into .env.local as BOT_PRIVATE_KEY
@@ -61,8 +61,8 @@ npm run agent:run       # go live
 A Signal Agent scans borrower positions every 5 seconds and sells early warnings (HF < 1.1) to liquidation bots via the [x402 protocol](https://x402.org). Bots pay 1 xUSDC for 1,000 signals.
 
 ```bash
-git clone https://github.com/PigAssasin/arcbank.git
-cd arcbank/signal-agent
+git clone https://github.com/PigAssasin/agentloan.git
+cd agentloan/signal-agent
 bash setup.sh           # generates wallet, installs deps, creates PM2 config
 # → follow the printed steps to fund wallet + start
 ```
@@ -75,7 +75,7 @@ See [signal-agent/README.md](signal-agent/README.md) for full details including 
 
 ### Liquidate via the UI — no code needed
 
-Go to [arcbank.vercel.app/app](https://arcbank.vercel.app/app) → **JOBS** tab → click **LIQUIDATE** on any available position. Requires xUSDC in your wallet.
+Go to [agentloan.vercel.app/app](https://agentloan.vercel.app/app) → **JOBS** tab → click **LIQUIDATE** on any available position. Requires xUSDC in your wallet.
 
 ---
 
@@ -100,8 +100,8 @@ Go to [arcbank.vercel.app/app](https://arcbank.vercel.app/app) → **JOBS** tab 
 ## Local Development
 
 ```bash
-git clone https://github.com/PigAssasin/arcbank.git
-cd arcbank
+git clone https://github.com/PigAssasin/agentloan.git
+cd agentloan
 bash setup.sh    # or: npm install --legacy-peer-deps && cp .env.example .env.local
 npm run dev      # http://localhost:3000
 ```

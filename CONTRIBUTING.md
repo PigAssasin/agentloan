@@ -1,6 +1,6 @@
-# Contributing to ArcBank
+# Contributing to AgentLoan
 
-Thanks for your interest. ArcBank is a testnet project — contributions welcome.
+Thanks for your interest. AgentLoan is a testnet project — contributions welcome.
 
 ---
 
@@ -37,8 +37,8 @@ All 56 tests must pass. No new packages in `package.json` without discussion (pe
 ## Development Setup
 
 ```bash
-git clone https://github.com/PigAssasin/arcbank.git
-cd arcbank
+git clone https://github.com/PigAssasin/agentloan.git
+cd agentloan
 bash setup.sh          # installs deps + creates .env.local
 npm run dev            # http://localhost:3000
 ```
@@ -64,7 +64,7 @@ config/contracts.ts Single source of truth for addresses
 - Never hardcode VPS IPs in tracked files — use env vars
 - Contract changes require redeployment and test update
 - Agent changes must not block liquidation on failure (try/catch everything)
-- Signal Agent must work independently of the main arcbank repo
+- Signal Agent must work independently of the main agentloan repo
 
 ---
 

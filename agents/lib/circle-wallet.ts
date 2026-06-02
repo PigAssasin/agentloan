@@ -8,7 +8,7 @@
  *   CIRCLE_ENTITY_SECRET — 32-byte hex, registered in Circle console
  *   CIRCLE_WALLET_ID   — set after createBotCircleWallet() first run
  */
-// On VPS: SDK installed at /root/circle-sdk (separate dir to avoid arcbank npm conflicts)
+// On VPS: SDK installed at /root/circle-sdk (separate dir to avoid agentloan npm conflicts)
 // Locally: installed in node_modules via npm install @circle-fin/developer-controlled-wallets
 let _circleSDK: any;
 function getSDK() {
@@ -41,7 +41,7 @@ export async function createBotCircleWallet(): Promise<{ walletId: string; addre
   const client = getCircleClient();
 
   console.log("Creating Circle wallet set...");
-  const setRes = await client.createWalletSet({ name: "ArcBank Liquidation Bot" });
+  const setRes = await client.createWalletSet({ name: "AgentLoan Liquidation Bot" });
   const walletSetId = setRes.data?.walletSet?.id;
   if (!walletSetId) throw new Error("Failed to create wallet set");
 

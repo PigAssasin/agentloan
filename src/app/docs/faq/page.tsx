@@ -3,8 +3,8 @@ import { DocPage } from "../_components/DocPage";
 
 const FAQS = [
   {
-    q: "Is ArcBank safe to use with real money?",
-    a: "No. ArcBank runs on Arc Testnet only. All tokens are testnet assets with no real-world value. Smart contracts have not been professionally audited. Do not use with real funds.",
+    q: "Is AgentLoan safe to use with real money?",
+    a: "No. AgentLoan runs on Arc Testnet only. All tokens are testnet assets with no real-world value. Smart contracts have not been professionally audited. Do not use with real funds.",
   },
   {
     q: "Why does my Supply APY show 0.00%?",
@@ -19,8 +19,8 @@ const FAQS = [
     a: "No. The faucet cooldown is enforced by the smart contract (stored in lastMintTime[address] on-chain). Clearing cookies, localStorage, or using a different browser does not reset it.",
   },
   {
-    q: "What oracle does ArcBank use for prices?",
-    a: "ArcBank uses Pyth Network — a real-time pull oracle with data from multiple institutional providers. Prices are submitted on-chain before each transaction and also refreshed every 5 minutes by an automated process. This is the same oracle infrastructure used by major DeFi protocols on mainnet.",
+    q: "What oracle does AgentLoan use for prices?",
+    a: "AgentLoan uses Pyth Network — a real-time pull oracle with data from multiple institutional providers. Prices are submitted on-chain before each transaction and also refreshed every 5 minutes by an automated process. This is the same oracle infrastructure used by major DeFi protocols on mainnet.",
   },
   {
     q: "Why does the Health Factor sometimes show a different number briefly?",
@@ -47,7 +47,7 @@ const FAQS = [
     a: "It depends on your collateral: xclrBTC → 70% LTV, xEURC → 80% LTV, xUSDC → 80% LTV. Example: $10,000 in xclrBTC collateral → max $7,000 xUSDC borrow.",
   },
   {
-    q: "Does ArcBank work on mobile?",
+    q: "Does AgentLoan work on mobile?",
     a: "Yes. The app is fully responsive — all pages including Dashboard, Markets, Profile, Faucet, and Docs are optimized for mobile. On small screens, the navbar collapses into a hamburger menu and tables adjust to show essential columns.",
   },
   {
@@ -92,7 +92,7 @@ export default function FaqPage() {
   return (
     <DocPage
       title="FAQ"
-      description="Frequently asked questions about ArcBank."
+      description="Frequently asked questions about AgentLoan."
       prev={{ label: "Smart Contracts", href: "/docs/contracts" }}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -108,7 +108,7 @@ export default function FaqPage() {
         <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, marginBottom: 12 }}>STILL HAVE QUESTIONS?</div>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#444", margin: 0 }}>
           Check the source code on{" "}
-          <a href="https://github.com/PigAssasin/arcbank" target="_blank" rel="noopener noreferrer" style={{ color: "#000", fontWeight: 600 }}>GitHub</a>{" "}
+          <a href="https://github.com/PigAssasin/agentloan" target="_blank" rel="noopener noreferrer" style={{ color: "#000", fontWeight: 600 }}>GitHub</a>{" "}
           or launch the{" "}
           <Link href="/app" style={{ color: "#000", fontWeight: 600 }}>app</Link> and explore.
         </p>

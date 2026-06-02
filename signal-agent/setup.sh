@@ -1,6 +1,6 @@
 #!/bin/bash
 # Signal Agent — Setup script
-# Run this AFTER setting up the main arcbank repo
+# Run this AFTER setting up the main agentloan repo
 # Usage: cd signal-agent && bash setup.sh
 
 set -e
@@ -92,10 +92,10 @@ echo "     Get from deployer wallet or https://faucet.circle.com"
 echo "     Wallet: $ADDR"
 echo ""
 echo "  2. Register on Arc ERC-8004 (one-time, skip if already done):"
-echo "     Add to arcbank/.env.local:"
+echo "     Add to agentloan/.env.local:"
 echo "       SIGNAL_AGENT_PRIVATE_KEY=$PK"
 echo "       SIGNAL_AGENT_ADDRESS=$ADDR"
-echo "     Then run: cd ../arcbank && node scripts/register-signal-agent-quick.js"
+echo "     Then run: cd ../agentloan && node scripts/register-signal-agent-quick.js"
 echo "     Copy the printed SIGNAL_AGENT_ERC8004_ID"
 echo ""
 echo "  3. Add env vars to ecosystem.signal.config.js:"

@@ -4,7 +4,7 @@ export default function ApyPage() {
   return (
     <DocPage
       title="APY & Interest"
-      description="ArcBank uses a variable 2-slope interest rate model. Rates change automatically based on pool utilization."
+      description="AgentLoan uses a variable 2-slope interest rate model. Rates change automatically based on pool utilization."
       prev={{ label: "Health Factor", href: "/docs/health-factor" }}
       next={{ label: "Liquidations", href: "/docs/liquidations" }}
     >
@@ -39,7 +39,7 @@ export default function ApyPage() {
 
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 24, marginBottom: 16, marginTop: 40 }}>HOW INTEREST IS STORED (SCALED BALANCES)</h2>
       <p style={{ fontFamily: "var(--font-body)", fontSize: 14, lineHeight: 1.8, color: "#444", marginBottom: 16 }}>
-        ArcBank uses the same mechanism as Aave: <strong>scaled balances</strong> with a cumulative index.
+        AgentLoan uses the same mechanism as Aave: <strong>scaled balances</strong> with a cumulative index.
       </p>
       <div style={{ border: "3px solid #000", padding: "24px", marginBottom: 24, fontFamily: "var(--font-mono)", fontSize: 13, lineHeight: 2.2 }}>
         <div><strong>On deposit:</strong></div>

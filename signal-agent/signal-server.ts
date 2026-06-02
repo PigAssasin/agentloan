@@ -1,5 +1,5 @@
 /**
- * ArcBank Signal Agent — x402-inspired HTTP server
+ * AgentLoan Signal Agent — x402-inspired HTTP server
  *
  * Scans all borrowers every 5s for HF < 1.1 (pre-liquidation warning).
  * Sells signals via x402 protocol: 1 xUSDC → 1000 signals (24h session).
@@ -290,7 +290,7 @@ setInterval(() => {
 }, 3_600_000);
 
 app.listen(PORT, () => {
-  console.log(`\n📡 ArcBank Signal Agent`);
+  console.log(`\n📡 AgentLoan Signal Agent`);
   console.log(`   Port:     ${PORT}`);
   console.log(`   Payments: ${AGENT_ADDRESS}`);
   console.log(`   Price:    1 xUSDC = 1000 signals (24h)\n`);

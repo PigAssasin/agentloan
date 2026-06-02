@@ -1,4 +1,4 @@
-# ArcBank Signal Agent
+# AgentLoan Signal Agent
 
 An x402-inspired HTTP server that scans borrower positions every 5 seconds and sells early liquidation warnings to bots.
 
@@ -62,7 +62,7 @@ Get testnet USDC: https://faucet.circle.com
 Gives your Signal Agent an on-chain verified identity.
 
 ```bash
-# In the arcbank/ parent directory:
+# In the agentloan/ parent directory:
 echo "SIGNAL_AGENT_PRIVATE_KEY=0x<your-key>" >> .env.local
 echo "SIGNAL_AGENT_ADDRESS=0x<your-address>" >> .env.local
 node scripts/register-signal-agent-quick.js
@@ -197,7 +197,7 @@ curl -i http://localhost:3001/v1/signals
 | `NEXT_PUBLIC_ARC_RPC` | ✅ | Arc Testnet RPC URL |
 | `SIGNAL_AGENT_PORT` | No | HTTP port (default: 3001) |
 | `SIGNAL_AGENT_ERC8004_ID` | No | On-chain agent identity |
-| `ALLOWED_ORIGIN` | No | CORS origin (default: arcbank.vercel.app) |
+| `ALLOWED_ORIGIN` | No | CORS origin (default: agentloan.vercel.app) |
 
 ---
 

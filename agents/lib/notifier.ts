@@ -25,7 +25,7 @@ export function liquidationMessage(
   txHash: string,
 ): string {
   return [
-    `🤖 <b>ArcBank Liquidation</b>`,
+    `🤖 <b>AgentLoan Liquidation</b>`,
     ``,
     `Borrower: <code>${borrower.slice(0, 10)}...${borrower.slice(-6)}</code>`,
     `Repaid:   <b>${debtRepaid} xUSDC</b>`,

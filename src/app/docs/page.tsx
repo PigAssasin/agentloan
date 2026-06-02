@@ -51,7 +51,7 @@ const SECTIONS = [
   {
     title: "FAQ",
     slug: "faq",
-    desc: "Common questions about ArcBank and Arc Testnet.",
+    desc: "Common questions about AgentLoan and Arc Testnet.",
   },
 ];
 
@@ -64,10 +64,10 @@ export default function DocsPage() {
           <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>Documentation</span>
         </div>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 56, lineHeight: 0.95, marginBottom: 16 }}>
-          ARCBANK<br />DOCS
+          AGENTLOAN<br />DOCS
         </h1>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 16, color: "#666", maxWidth: 560, lineHeight: 1.7 }}>
-          Everything you need to use ArcBank — a decentralized lending protocol on Arc Testnet.
+          Everything you need to use AgentLoan — a decentralized lending protocol on Arc Testnet.
           Supply collateral, borrow stablecoins, and earn yield, all on-chain.
         </p>
       </div>

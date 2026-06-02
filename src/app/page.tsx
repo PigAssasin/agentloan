@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArcBankLogo } from "../components/shared/ArcBankLogo";
+import { AgentLoanLogo } from "../components/shared/ArcBankLogo";
 import { useIsMobile } from "../hooks/use-is-mobile";
 
 const HeroCanvas = dynamic(
@@ -19,8 +19,8 @@ export default function LandingPage() {
       <header style={{ borderBottom: "3px solid #000000", position: "sticky", top: 0, zIndex: 100, background: "#ffffff" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <ArcBankLogo size={30} color="#000000" style={{ marginBottom: 6 }} />
-            <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, letterSpacing: "-0.02em" }}>ArcBank</span>
+            <AgentLoanLogo size={30} color="#000000" style={{ marginBottom: 6 }} />
+            <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, letterSpacing: "-0.02em" }}>AgentLoan</span>
           </div>
         </div>
       </header>
@@ -238,7 +238,7 @@ export default function LandingPage() {
             START LENDING TODAY
           </h2>
           <p style={{ fontFamily: "var(--font-body)", fontSize: 16, color: "#444444", lineHeight: 1.7, marginBottom: 40 }}>
-            Connect your wallet, mint free testnet tokens from the ArcBank faucet, and start supplying collateral on Arc Testnet in minutes.
+            Connect your wallet, mint free testnet tokens from the AgentLoan faucet, and start supplying collateral on Arc Testnet in minutes.
           </p>
           <div style={{ display: "flex", gap: 0, justifyContent: "center", flexWrap: "wrap" }}>
             <Link href="/app" style={{
@@ -274,8 +274,8 @@ export default function LandingPage() {
             {/* Brand */}
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <ArcBankLogo size={28} color="#000000" style={{ marginBottom: 6 }} />
-                <span style={{ fontFamily: "var(--font-heading)", fontSize: 20, letterSpacing: "-0.02em" }}>ArcBank</span>
+                <AgentLoanLogo size={28} color="#000000" style={{ marginBottom: 6 }} />
+                <span style={{ fontFamily: "var(--font-heading)", fontSize: 20, letterSpacing: "-0.02em" }}>AgentLoan</span>
               </div>
               <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#666666", lineHeight: 1.7, maxWidth: 280 }}>
                 Decentralized lending protocol built on Arc Network. Testnet only. Use responsibly.
@@ -322,7 +322,7 @@ export default function LandingPage() {
               {[
                 { label: "Twitter / X",  href: "https://x.com/nheoweb3" },
                 { label: "LinkedIn",     href: "https://www.linkedin.com/in/ha-nguyen-28645426a/" },
-                { label: "GitHub",       href: "https://github.com/PigAssasin/arcbank" },
+                { label: "GitHub",       href: "https://github.com/PigAssasin/agentloan" },
               ].map(({ label, href }) => (
                 <div key={label} style={{ marginBottom: 10 }}>
                   <a href={href} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#000000", textDecoration: "none" }}>
@@ -343,7 +343,7 @@ export default function LandingPage() {
             gap: isMobile ? 8 : 0,
           }}>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999" }}>
-              ArcBank · Arc Testnet (Chain ID: 5042002) · Not audited · Testnet only
+              AgentLoan · Arc Testnet (Chain ID: 5042002) · Not audited · Testnet only
             </span>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999" }}>
               © 2026

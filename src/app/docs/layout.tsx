@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 const NAV = [
   { label: "Overview", href: "/docs" },
   { label: "Getting Started", href: "/docs/getting-started" },
-  { divider: "Using ArcBank" },
+  { divider: "Using AgentLoan" },
   { label: "Supply", href: "/docs/supply" },
   { label: "Borrow", href: "/docs/borrow" },
   { label: "Repay", href: "/docs/repay" },

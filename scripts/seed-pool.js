@@ -1,5 +1,5 @@
 /**
- * Seed ArcBank pool with liquidity using deployer wallet.
+ * Seed AgentLoan pool with liquidity using deployer wallet.
  * Run: node scripts/seed-pool.js
  */
 const { createWalletClient, createPublicClient, http, parseAbi, parseUnits, formatUnits } = require('viem');

@@ -4,12 +4,12 @@ export default function AgentsPage() {
   return (
     <DocPage
       title="DeFi Agents"
-      description="ArcBank runs three autonomous agents that monitor positions, protect users, and keep the protocol healthy — 24 hours a day."
+      description="AgentLoan runs three autonomous agents that monitor positions, protect users, and keep the protocol healthy — 24 hours a day."
       prev={{ label: "Liquidations", href: "/docs/liquidations" }}
       next={{ label: "Smart Contracts", href: "/docs/contracts" }}
     >
       <InfoBox title="What are DeFi Agents?">
-        DeFi Agents are autonomous programs that interact with the ArcBank protocol on your behalf.
+        DeFi Agents are autonomous programs that interact with the AgentLoan protocol on your behalf.
         The <strong>Liquidation Bot</strong> runs on a dedicated server and monitors every position in real-time.
         The <strong>Guardian Agent</strong> and <strong>Yield Optimizer</strong> run in your browser and alert you when action is needed.
       </InfoBox>

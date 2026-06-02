@@ -1,5 +1,5 @@
 #!/bin/bash
-# ArcBank — One-command setup script
+# AgentLoan — One-command setup script
 # Works on Linux/macOS. On Windows use Git Bash or WSL.
 # Usage: bash setup.sh
 
@@ -7,7 +7,7 @@ set -e
 
 echo ""
 echo "╔═══════════════════════════════════╗"
-echo "║       ArcBank Setup Script        ║"
+echo "║       AgentLoan Setup Script        ║"
 echo "╚═══════════════════════════════════╝"
 echo ""
 
@@ -76,7 +76,7 @@ echo "     npm run wallet:new"
 echo "     → paste the private key into .env.local as BOT_PRIVATE_KEY"
 echo ""
 echo "  3. Get testnet tokens:"
-echo "     https://arcbank.vercel.app/faucet"
+echo "     https://agentloan.vercel.app/faucet"
 echo ""
 echo "  4. Run the frontend:"
 echo "     npm run dev → http://localhost:3000"

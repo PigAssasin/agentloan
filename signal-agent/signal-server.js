@@ -1,5 +1,5 @@
 /**
- * ArcBank Signal Agent — x402-inspired HTTP server (plain JS, no ts-node)
+ * AgentLoan Signal Agent — x402-inspired HTTP server (plain JS, no ts-node)
  * Scans borrowers every 5s for HF < 1.1, sells signals via x402 protocol.
  */
 const express  = require('express');
@@ -139,6 +139,6 @@ setInterval(scanPositions, 5000);
 setInterval(() => { for (const [id, s] of sessions) if (Date.now() > s.expiresAt || s.remaining <= 0) sessions.delete(id); }, 3600000);
 
 app.listen(PORT, () => {
-  console.log(`\n📡 ArcBank Signal Agent (JS)`);
+  console.log(`\n📡 AgentLoan Signal Agent (JS)`);
   console.log(`   Port: ${PORT} | Payments: ${AGENT_ADDRESS} | ERC-8004: ${process.env.SIGNAL_AGENT_ERC8004_ID || 'unregistered'}\n`);
 });

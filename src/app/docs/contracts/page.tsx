@@ -4,7 +4,7 @@ export default function ContractsPage() {
   return (
     <DocPage
       title="Smart Contracts"
-      description="Technical reference for ArcBank smart contracts deployed on Arc Testnet."
+      description="Technical reference for AgentLoan smart contracts deployed on Arc Testnet."
       prev={{ label: "DeFi Agents", href: "/docs/agents" }}
       next={{ label: "FAQ", href: "/docs/faq" }}
     >
@@ -32,7 +32,7 @@ export default function ContractsPage() {
 
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 24, marginBottom: 16, marginTop: 40 }}>PRICE ORACLE — PYTH NETWORK</h2>
       <InfoBox>
-        ArcBank uses <strong>Pyth Network</strong> for real-time on-chain prices.
+        AgentLoan uses <strong>Pyth Network</strong> for real-time on-chain prices.
         Pyth is a pull oracle — prices are fetched from Hermes API and pushed on-chain every ~15 seconds by the Liquidation Bot.
         The same oracle infrastructure is used by major DeFi protocols on mainnet.
       </InfoBox>
@@ -54,7 +54,7 @@ export default function ContractsPage() {
 
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 24, marginBottom: 16, marginTop: 40 }}>ARC ERC-8004 AGENT REGISTRY</h2>
       <InfoBox>
-        The ArcBank Liquidation Bot is registered as an on-chain AI agent via Arc's ERC-8004 standard.
+        The AgentLoan Liquidation Bot is registered as an on-chain AI agent via Arc's ERC-8004 standard.
         This gives the bot a verifiable on-chain identity and reputation system.
       </InfoBox>
       <Table
@@ -133,8 +133,8 @@ export default function ContractsPage() {
       <div style={{ border: "3px solid #000", padding: "20px 24px" }}>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 14, margin: 0 }}>
           Source code:{" "}
-          <a href="https://github.com/PigAssasin/arcbank" target="_blank" rel="noopener noreferrer" style={{ color: "#000", fontWeight: 600 }}>
-            github.com/PigAssasin/arcbank
+          <a href="https://github.com/PigAssasin/agentloan" target="_blank" rel="noopener noreferrer" style={{ color: "#000", fontWeight: 600 }}>
+            github.com/PigAssasin/agentloan
           </a>
         </p>
       </div>

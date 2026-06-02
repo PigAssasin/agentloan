@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { ArcBankLogo } from "./ArcBankLogo";
+import { AgentLoanLogo } from "./ArcBankLogo";
 import { useIsMobile } from "../../hooks/use-is-mobile";
 
 const btnBase: React.CSSProperties = {
@@ -48,9 +48,9 @@ export function Navbar() {
       }}>
         {/* Logo — links to landing page */}
         <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
-          <ArcBankLogo size={34} color="#000000" style={{ marginBottom: 6 }} />
+          <AgentLoanLogo size={34} color="#000000" style={{ marginBottom: 6 }} />
           <span style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "#000000", letterSpacing: "-0.02em" }}>
-            ArcBank
+            AgentLoan
           </span>
         </Link>
 

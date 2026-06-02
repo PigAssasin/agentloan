@@ -19,7 +19,7 @@ const arcClient = createPublicClient({
 // would be needed. Out of scope for this phase.
 export async function registerAgent(
   wallet:      WalletClient,
-  metadataURI = "https://arcbank.vercel.app/agents/liquidation-bot.json",
+  metadataURI = "https://agentloan.vercel.app/agents/liquidation-bot.json",
 ): Promise<bigint> {
   if (BOT_CONFIG.DRY_RUN) {
     console.log("[DRY_RUN] Would register agent:", metadataURI);

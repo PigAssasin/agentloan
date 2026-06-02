@@ -4,7 +4,7 @@ export default function SupplyPage() {
   return (
     <DocPage
       title="How to Supply"
-      description="Supply assets to ArcBank to earn variable APY and use them as collateral to borrow."
+      description="Supply assets to AgentLoan to earn variable APY and use them as collateral to borrow."
       prev={{ label: "Getting Started", href: "/docs/getting-started" }}
       next={{ label: "How to Borrow", href: "/docs/borrow" }}
     >
@@ -51,7 +51,7 @@ export default function SupplyPage() {
 
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 24, marginBottom: 16, marginTop: 40 }}>HOW INTEREST ACCRUES</h2>
       <p style={{ fontFamily: "var(--font-body)", fontSize: 14, lineHeight: 1.8, color: "#444", marginBottom: 16 }}>
-        ArcBank uses Aave-style scaled balances. When you deposit, your amount is divided by the current{" "}
+        AgentLoan uses Aave-style scaled balances. When you deposit, your amount is divided by the current{" "}
         <code style={{ fontFamily: "var(--font-mono)", background: "#f5f5f5", padding: "2px 6px" }}>liquidityIndex</code>.
         As borrowers pay interest, the index grows. Your real balance = <code style={{ fontFamily: "var(--font-mono)", background: "#f5f5f5", padding: "2px 6px" }}>scaledBalance × currentIndex</code>.
       </p>

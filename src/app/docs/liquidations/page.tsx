@@ -9,7 +9,7 @@ export default function LiquidationsPage() {
       next={{ label: "DeFi Agents", href: "/docs/agents" }}
     >
       <InfoBox title="Open Liquidations">
-        ArcBank uses open liquidations — any wallet can liquidate any undercollateralized position.
+        AgentLoan uses open liquidations — any wallet can liquidate any undercollateralized position.
         Liquidators are incentivized by a <strong>liquidation bonus</strong> on the collateral they receive.
       </InfoBox>
 
@@ -52,7 +52,7 @@ export default function LiquidationsPage() {
       </div>
 
       <WarnBox>
-        <strong>⚠ ArcBank uses mock oracle prices</strong> on testnet (BTC = $60,000 fixed).
+        <strong>⚠ AgentLoan uses mock oracle prices</strong> on testnet (BTC = $60,000 fixed).
         On mainnet with real Pyth Network feeds, collateral prices fluctuate and liquidation risk is real.
         Always maintain a safe Health Factor buffer.
       </WarnBox>

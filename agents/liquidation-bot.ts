@@ -1,5 +1,5 @@
 /**
- * ArcBank Liquidation Bot
+ * AgentLoan Liquidation Bot
  *
  * Architecture (single loop, no nonce conflicts):
  *   watchBlocks (~0.48s per block)
@@ -60,7 +60,7 @@ async function safeUpdateOracle(wallet: ReturnType<typeof createBotWallet>): Pro
 }
 
 async function main() {
-  console.log(`\n🤖 ArcBank Liquidation Bot`);
+  console.log(`\n🤖 AgentLoan Liquidation Bot`);
   console.log(`   Mode:    ${BOT_CONFIG.DRY_RUN ? "DRY_RUN (no txs)" : "LIVE"}`);
   console.log(`   Execution: ${isCircleEnabled() ? "Circle SCA (gas sponsored, no private key)" : "Private key wallet"}`);
   console.log(`   Started: ${new Date().toISOString()}`);

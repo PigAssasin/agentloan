@@ -1,4 +1,4 @@
-# ArcBank Bot — VPS Deploy Guide
+# AgentLoan Bot — VPS Deploy Guide
 
 ## 1. VPS Requirements
 
@@ -19,8 +19,8 @@ sudo apt-get install -y nodejs
 npm install -g pm2
 
 # Clone repo
-git clone https://github.com/PigAssasin/arcbank.git
-cd arcbank
+git clone https://github.com/PigAssasin/agentloan.git
+cd agentloan
 
 # Install dependencies
 npm ci
@@ -49,7 +49,7 @@ EOF
 The bot wallet needs xUSDC to repay debt during liquidations:
 
 ```bash
-# Use the ArcBank faucet at https://arcbank.vercel.app/faucet
+# Use the AgentLoan faucet at https://agentloan.vercel.app/faucet
 # Or send xUSDC from your deployer wallet
 ```
 
@@ -69,7 +69,7 @@ DRY_RUN=true npm run agent:dry
 
 Expected output:
 ```
-🤖 ArcBank Liquidation Bot
+🤖 AgentLoan Liquidation Bot
    Mode:    DRY_RUN (no txs)
    Wallet:  0x...
 👂 Watching blocks...
@@ -104,7 +104,7 @@ pm2 startup
 When new code is deployed:
 
 ```bash
-cd arcbank
+cd agentloan
 git pull
 npm ci
 pm2 restart arcbank-bot

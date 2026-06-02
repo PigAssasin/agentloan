@@ -1,5 +1,5 @@
 /**
- * One-time: register ArcBank Liquidation Bot on Arc ERC-8004 identity registry.
+ * One-time: register AgentLoan Liquidation Bot on Arc ERC-8004 identity registry.
  *
  * Run once:
  *   npm run agent:register
