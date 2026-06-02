@@ -14,7 +14,7 @@ export async function GET() {
       headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" },
     });
   } catch (err: any) {
-    return NextResponse.json({ online: false, debug: String(err?.message ?? err) }, {
+    return NextResponse.json({ online: false, debug: String(err?.message ?? err), url: SIGNAL_AGENT_URL }, {
       headers: { "Cache-Control": "public, s-maxage=10" },
     });
   }
