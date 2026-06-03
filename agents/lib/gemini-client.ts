@@ -6,8 +6,8 @@
 const GEMINI_API_KEY   = process.env.GEMINI_API_KEY;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
-// gemini-2.5-flash — confirmed available, cheaper than 2.0 on postpay
-const GEMINI_URL   = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+// gemini-2.0-flash-001 — stable, non-thinking, confirmed available
+const GEMINI_URL   = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent";
 const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 
 export interface LLMResponse {
@@ -77,7 +77,7 @@ async function callDeepSeek(prompt: string): Promise<string> {
 export async function callLLM(prompt: string): Promise<LLMResponse> {
   try {
     const text = await callGemini(prompt);
-    return { text, model: "gemini-2.5-flash" };
+    return { text, model: "gemini-2.0-flash-001" };
   } catch (e: any) {
     console.warn(`  [coordinator] Gemini failed (${e.message}), trying DeepSeek...`);
   }
