@@ -85,7 +85,6 @@ function parseDecision(text: string, fallbackPriority: string[]): Pick<Coordinat
   const end     = cleaned.lastIndexOf("}");
   const jsonStr = start !== -1 && end > start ? cleaned.slice(start, end + 1) : null;
 
-  console.log(`  [coordinator] parse debug: len=${text.length} start=${start} end=${end} jsonLen=${jsonStr?.length ?? 0}`);
 
   if (!jsonStr) {
     console.warn(`  [coordinator] no JSON found in response (len=${text.length})`);
@@ -173,7 +172,6 @@ async function runCoordinator(): Promise<void> {
       // Call LLM
       const { text, model } = await callLLM(prompt);
       markCalled(stateHash);
-      console.log(`  [coordinator] Raw (${model}): ${text.replace(/\n/g, "\\n").slice(0, 500)}`);
       const fallbackOrder   = risky
         .sort((a, b) => Number(a.healthFactor - b.healthFactor))
         .map(p => p.address);
