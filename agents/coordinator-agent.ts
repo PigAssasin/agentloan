@@ -13,7 +13,7 @@ dotenv.config({ path: ".env.local" });
 import * as fs   from "fs";
 import * as path from "path";
 import { formatUnits } from "viem";
-import { publicClient, getAllBorrowers, getPositionsBatch } from "./lib/pool-reader";
+import { publicClient, getPositionsBatch } from "./lib/pool-reader";
 import { callLLM }    from "./lib/gemini-client";
 import {
   loadMemory, saveMemory, addDecision,
@@ -21,9 +21,10 @@ import {
 } from "./lib/coordinator-memory";
 import { BOT_CONFIG } from "./config";
 
-const COORDINATOR_FILE = "agents/state/coordinator.json";
-const SCAN_INTERVAL_MS = 30_000;
-const HF_RISK_THRESHOLD = 1.1;   // only call LLM when positions below this
+const COORDINATOR_FILE   = "agents/state/coordinator.json";
+const KNOWN_BORROWERS_FILE = "agents/state/known-borrowers.json";
+const SCAN_INTERVAL_MS   = 30_000;
+const HF_RISK_THRESHOLD  = 1.1;
 const WAD = 10n ** 18n;
 
 export interface CoordinatorDecision {
@@ -102,16 +103,16 @@ async function runCoordinator(): Promise<void> {
   console.log(`   Trigger: only when positions HF < ${HF_RISK_THRESHOLD}`);
   console.log(`   Interval: ${SCAN_INTERVAL_MS / 1000}s\n`);
 
-  // Initial borrower scan
-  const initial = await getAllBorrowers();
-  for (const b of initial) knownBorrowers.add(b as `0x${string}`);
-  console.log(`  Loaded ${knownBorrowers.size} known borrowers`);
+  console.log(`  Reading borrowers from bot's shared state...`);
 
   async function tick(): Promise<void> {
     try {
-      // Refresh borrowers periodically
-      const fresh = await getAllBorrowers();
-      for (const b of fresh) knownBorrowers.add(b as `0x${string}`);
+      // Read borrowers written by liquidation bot — no blockchain scanning, no conflict
+      const borrowersFile = path.resolve(KNOWN_BORROWERS_FILE);
+      if (fs.existsSync(borrowersFile)) {
+        const list: string[] = JSON.parse(fs.readFileSync(borrowersFile, "utf8"));
+        for (const b of list) knownBorrowers.add(b as `0x${string}`);
+      }
 
       if (knownBorrowers.size === 0) {
         process.stdout.write("·");

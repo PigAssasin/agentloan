@@ -49,8 +49,9 @@ import * as fs   from "fs";
 import * as path from "path";
 import type { UserPosition } from "./lib/pool-reader";
 
-const COORDINATOR_FILE   = "agents/state/coordinator.json";
+const COORDINATOR_FILE      = "agents/state/coordinator.json";
 const COORDINATOR_MAX_AGE_MS = 2 * 60 * 1000;  // 2 minutes — stale = ignore
+const KNOWN_BORROWERS_FILE  = "agents/state/known-borrowers.json";
 
 function applyCoordinatorPriority(positions: UserPosition[]): UserPosition[] {
   try {
@@ -131,6 +132,11 @@ async function main() {
           if (fresh.length > 0) {
             console.log(`\n  [block ${block.number}] +${fresh.length} borrower(s), total: ${knownBorrowers.size}`);
           }
+          // Share borrower list with coordinator — no scanning conflict
+          try {
+            fs.mkdirSync(path.dirname(path.resolve(KNOWN_BORROWERS_FILE)), { recursive: true });
+            fs.writeFileSync(path.resolve(KNOWN_BORROWERS_FILE), JSON.stringify(Array.from(knownBorrowers)), "utf8");
+          } catch {}
         }
 
         if (knownBorrowers.size === 0) {
