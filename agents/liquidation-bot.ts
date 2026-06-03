@@ -27,7 +27,8 @@
  *   DRY_RUN               — "true" to log without sending txs
  */
 import * as dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
+import * as path from "path";
+dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 
 import { formatUnits }    from "viem";
 import { BOT_CONFIG } from "./config";

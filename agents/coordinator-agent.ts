@@ -8,7 +8,8 @@
  * LLM stack: Gemini 2.0 Flash (free, primary) → DeepSeek V3 (fallback)
  */
 import * as dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
+import * as path from "path";
+dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 
 import * as fs   from "fs";
 import * as path from "path";
