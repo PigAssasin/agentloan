@@ -132,6 +132,32 @@ app.get('/v1/status', (_req, res) => {
   res.json({ online:true, activeSessions:sessions.size, sessionsIssued, signalsAvailable:cachedSignals.length, lastScanAt, scanCount, totalPaidUsdc: formatUnits(totalPaid, 6), agentAddress: AGENT_ADDRESS, agentId: process.env.SIGNAL_AGENT_ERC8004_ID || 'unregistered' });
 });
 
+// Coordinator Agent status endpoint — reads coordinator.json written by the bot
+app.get('/v1/coordinator', (_req, res) => {
+  try {
+    const coordFile = require('path').resolve('/root/arcbank/agents/state/coordinator.json');
+    const memFile   = require('path').resolve('/root/arcbank/agents/state/coordinator-memory.json');
+    const fs = require('fs');
+    if (!fs.existsSync(coordFile)) return res.json({ active: false, reason: 'no decision yet' });
+    const decision = JSON.parse(fs.readFileSync(coordFile, 'utf8'));
+    const ageMs = Date.now() - (decision.timestamp || 0);
+    const memory = fs.existsSync(memFile) ? JSON.parse(fs.readFileSync(memFile, 'utf8')) : null;
+    res.json({
+      active:     ageMs < 120_000,  // fresh if < 2 minutes old
+      ageSeconds: Math.floor(ageMs / 1000),
+      model:      decision.model,
+      strategy:   decision.strategy,
+      reasoning:  decision.reasoning,
+      priority:   decision.priority,
+      memorySummary: memory?.summary ?? null,
+      decisionsCount: memory?.decisions?.length ?? 0,
+      timestamp:  decision.timestamp,
+    });
+  } catch (e) {
+    res.json({ active: false, reason: String(e.message) });
+  }
+});
+
 if (!AGENT_ADDRESS) { console.error('ERROR: SIGNAL_AGENT_ADDRESS not set'); process.exit(1); }
 
 scanPositions();

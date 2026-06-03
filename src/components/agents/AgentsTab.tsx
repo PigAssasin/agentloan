@@ -1,6 +1,7 @@
 import { GuardianPanel }       from "./GuardianPanel";
 import { YieldOptimizerPanel } from "./YieldOptimizerPanel";
 import { BotStatusPanel }      from "./BotStatusPanel";
+import { CoordinatorPanel }    from "./CoordinatorPanel";
 
 export function AgentsTab() {
   return (
@@ -9,6 +10,7 @@ export function AgentsTab() {
         DeFi Agents monitor your positions and market conditions in real-time.
       </div>
 
+      <CoordinatorPanel />
       <BotStatusPanel />
       <GuardianPanel />
       <YieldOptimizerPanel />
