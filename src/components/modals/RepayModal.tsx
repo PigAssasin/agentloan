@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { parseUnits } from "viem";
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useAccount } from "wagmi";
+import { parseUnits, formatUnits } from "viem";
 import { Modal, OverviewRow } from "../shared/Modal";
 import { TokenIcon }          from "../shared/TokenIcon";
 import LendingPoolABI         from "@/lib/abi-lending-pool.json";
@@ -16,11 +16,23 @@ export function RepayModal({ token: tokenSymbol, onClose }: { token: string; onC
   const [amount, setAmount] = useState("");
   const [step, setStep]     = useState<"idle" | "approving" | "repaying" | "done">("idle");
 
+  const { address } = useAccount();
   const token        = Object.values(TOKENS).find(t => t.symbol === tokenSymbol);
   const decimals     = token?.decimals ?? 6;
   const tokenAddress = token?.address as `0x${string}` | undefined;
   const { borrow, refetch } = useUserTokenBalances();
   const maxDebt = borrow[tokenSymbol as keyof typeof borrow] ?? 0;
+
+  // Wallet balance — MAX should be min(walletBalance, debt)
+  const { data: walletBalRaw } = useReadContract({
+    address: tokenAddress,
+    abi: MockERC20ABI as any,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address && !!tokenAddress },
+  });
+  const walletBalance = walletBalRaw ? Number(formatUnits(walletBalRaw as bigint, decimals)) : 0;
+  const maxRepay = Math.min(walletBalance, maxDebt);
 
   const { writeContract: runApprove, data: approveTxHash } = useWriteContract();
   const { writeContract: runRepay,   data: repayTxHash   } = useWriteContract();
@@ -84,10 +96,11 @@ export function RepayModal({ token: tokenSymbol, onClose }: { token: string; onC
       <div style={{ display: "flex", gap: 0, marginBottom: 8, border: "3px solid #000000" }}>
         <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00"
           style={{ flex: 1, padding: "12px 16px", fontSize: 16, fontFamily: "var(--font-mono)", border: "none", outline: "none", background: "#ffffff", color: "#000000" }} />
-        <button onClick={() => setAmount(maxDebt.toFixed(decimals === 8 ? 8 : 6))}
+        <button onClick={() => setAmount(maxRepay.toFixed(decimals === 8 ? 8 : 6))}
           style={{ padding: "0 20px", background: "#000000", color: "#ffffff", border: "none", borderLeft: "3px solid #000000", fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer" }}>MAX</button>
       </div>
-      <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999", marginBottom: 16 }}>Outstanding debt: {maxDebt.toFixed(2)} {tokenSymbol}</p>
+      <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999", marginBottom: 4 }}>Outstanding debt: {maxDebt.toFixed(2)} {tokenSymbol}</p>
+      <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: walletBalance < maxDebt ? "#ff3b30" : "#999999", marginBottom: 16 }}>Wallet balance: {walletBalance.toFixed(2)} {tokenSymbol}</p>
 
       <div style={{ marginBottom: 20, padding: "10px 14px", border: `2px solid ${step === "repaying" ? "#008000" : "#000000"}`, background: step === "repaying" ? "#f0fff0" : "#f5f5f5", fontFamily: "var(--font-body)", fontSize: 12, color: step === "repaying" ? "#008000" : "#333333" }}>
         {stepLabel}

@@ -7,7 +7,7 @@ import { Modal, OverviewRow } from "../shared/Modal";
 import { TokenIcon }          from "../shared/TokenIcon";
 import LendingPoolABI         from "@/lib/abi-lending-pool.json";
 import { ARC_TESTNET_CONTRACTS } from "../../../config/contracts";
-import { TOKENS, useUserTokenBalances } from "../../hooks/use-lending-pool";
+import { TOKENS, useUserTokenBalances, useUserAccountData } from "../../hooks/use-lending-pool";
 
 const POOL = ARC_TESTNET_CONTRACTS.LENDING_POOL;
 
@@ -19,7 +19,15 @@ export function WithdrawModal({ symbol, onClose }: { symbol: string; onClose: ()
   const decimals     = token?.decimals ?? 6;
   const tokenAddress = token?.address as `0x${string}` | undefined;
   const { supply, refetch } = useUserTokenBalances();
-  const maxAmount = supply[symbol as keyof typeof supply] ?? 0;
+  const supplied = supply[symbol as keyof typeof supply] ?? 0;
+
+  // Safe max withdraw — keep HF ≥ 1.05 after withdrawal
+  const { healthFactorRaw, totalDebtUSD } = useUserAccountData();
+  const hf = healthFactorRaw === (2n ** 256n - 1n) ? Infinity : Number(healthFactorRaw) / 1e18;
+  const safeMaxAmount = totalDebtUSD === 0
+    ? supplied                                        // no debt → withdraw all
+    : supplied * Math.max(0, 1 - 1.05 / hf);         // keep HF ≥ 1.05
+  const maxAmount = Math.min(supplied, safeMaxAmount);
 
   const { writeContract, data: txHash } = useWriteContract();
   const { isLoading: isPending } = useWaitForTransactionReceipt({
@@ -29,7 +37,7 @@ export function WithdrawModal({ symbol, onClose }: { symbol: string; onClose: ()
 
   function handle() {
     const n = parseFloat(amount);
-    if (!amount || !isFinite(n) || n <= 0 || n > maxAmount || !tokenAddress) return;
+    if (!amount || !isFinite(n) || n <= 0 || n > supplied || !tokenAddress) return;
     writeContract({ address: POOL, abi: LendingPoolABI as any, functionName: "withdraw", args: [tokenAddress, parseUnits(amount, decimals)] });
   }
 
@@ -57,9 +65,14 @@ export function WithdrawModal({ symbol, onClose }: { symbol: string; onClose: ()
         <button onClick={() => setAmount(maxAmount.toFixed(decimals === 8 ? 8 : 6))}
           style={{ padding: "0 20px", background: "#000000", color: "#ffffff", border: "none", borderLeft: "3px solid #000000", fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer" }}>MAX</button>
       </div>
-      <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999", marginBottom: 24 }}>
-        Supplied: {maxAmount.toFixed(decimals === 8 ? 6 : 2)} {symbol}
+      <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#999999", marginBottom: 4 }}>
+        Supplied: {supplied.toFixed(decimals === 8 ? 6 : 2)} {symbol}
       </p>
+      {totalDebtUSD > 0 && (
+        <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#ff8c00", marginBottom: 24 }}>
+          Max safe withdraw: {maxAmount.toFixed(decimals === 8 ? 6 : 2)} {symbol} (keeps HF ≥ 1.05)
+        </p>
+      )}
       <div style={{ borderTop: "2px solid #000000", paddingTop: 16, marginBottom: 24 }}>
         <OverviewRow label="Remaining collateral" value={`${(maxAmount - parseFloat(amount || "0")).toFixed(2)} ${symbol}`} />
       </div>
