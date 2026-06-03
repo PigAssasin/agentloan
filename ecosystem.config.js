@@ -24,12 +24,10 @@ module.exports = {
     },
     {
       name:        "coordinator-agent",
-      script:      "./node_modules/.bin/ts-node",
-      args:        "-P tsconfig.hardhat.json agents/coordinator-agent.ts",
+      script:      "/root/arcbank/run-coordinator.sh",
       cwd:         "/root/arcbank",
-      interpreter: "node",
+      interpreter: "bash",
       env: {
-        TS_NODE_PROJECT:     "tsconfig.hardhat.json",
         NEXT_PUBLIC_ARC_RPC: "https://rpc.testnet.arc.network",
       },
       restart_delay:  10000,
