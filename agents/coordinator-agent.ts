@@ -168,7 +168,7 @@ async function runCoordinator(): Promise<void> {
       // Call LLM
       const { text, model } = await callLLM(prompt);
       markCalled(stateHash);
-      console.log(`  [coordinator] Raw response (${model}): ${text.slice(0, 200).replace(/\n/g, " ")}`);
+      console.log(`  [coordinator] Raw (${model}): ${text.replace(/\n/g, "\\n").slice(0, 500)}`);
       const fallbackOrder   = risky
         .sort((a, b) => Number(a.healthFactor - b.healthFactor))
         .map(p => p.address);
