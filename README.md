@@ -57,6 +57,10 @@ The bot watches all borrower positions every ~0.5s. When Health Factor drops bel
 
 **Prerequisites:** Node.js 22+, Linux/macOS VPS (or WSL), some xUSDC for liquidation capital + a little USDC for gas.
 
+> **Recommended VPS:** 2GB RAM minimum. npm install requires ~1.5GB — on a 1GB droplet, create a swap file first: `dd if=/dev/zero of=/swapfile2 bs=1M count=2048 && mkswap /swapfile2 && swapon /swapfile2`
+
+> **Note on directory name:** The repo clones as `agentloan/` but if you follow the VPS deploy guide, the bot runs from `/root/arcbank/` — this is intentional (the VPS directory kept the original name during a brand rename). Both work fine.
+
 ```bash
 git clone https://github.com/PigAssasin/agentloan.git
 cd agentloan
