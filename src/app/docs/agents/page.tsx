@@ -4,34 +4,67 @@ export default function AgentsPage() {
   return (
     <DocPage
       title="DeFi Agents"
-      description="AgentLoan runs three autonomous agents that monitor positions, protect users, and keep the protocol healthy — 24 hours a day."
+      description="AgentLoan runs five autonomous agents — an AI coordinator, a liquidation bot, a signal marketplace, and two browser agents — working together 24 hours a day."
       prev={{ label: "Liquidations", href: "/docs/liquidations" }}
       next={{ label: "Smart Contracts", href: "/docs/contracts" }}
     >
       <InfoBox title="What are DeFi Agents?">
-        DeFi Agents are autonomous programs that interact with the AgentLoan protocol on your behalf.
-        The <strong>Liquidation Bot</strong> runs on a dedicated server and monitors every position in real-time.
-        The <strong>Guardian Agent</strong> and <strong>Yield Optimizer</strong> run in your browser and alert you when action is needed.
+        AgentLoan's agent layer has two tiers. <strong>Server agents</strong> (Coordinator, Liquidation Bot, Signal Agent)
+        run 24/7 on dedicated infrastructure. <strong>Browser agents</strong> (Guardian, Yield Optimizer) run in your
+        browser and alert you when action is needed.
       </InfoBox>
 
-      {/* ── Liquidation Bot ─────────────────────────────────────── */}
+      {/* ── Coordinator Agent ─────────────────────────────────────── */}
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 28, marginBottom: 8, marginTop: 8 }}>
-        01 — LIQUIDATION BOT
+        01 — COORDINATOR AGENT
       </h2>
       <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#444", lineHeight: 1.8, marginBottom: 28 }}>
-        A fully autonomous bot that monitors every borrower position every ~15 seconds and liquidates
-        undercollateralized positions (HF&nbsp;&lt;&nbsp;1.0), earning a 5% collateral bonus.
-        Registered on-chain as an AI agent via the{" "}
-        <strong>Arc ERC-8004</strong> identity registry (Agent ID #30907).
+        The brain of the system. Runs every 30 seconds and uses <strong>Gemini AI</strong> to reason about
+        liquidation strategy — only when risky positions exist (HF&nbsp;&lt;&nbsp;1.1).
+        Considers profit, urgency, front-run risk, and market conditions to produce a priority-ordered
+        liquidation queue. Learns from past outcomes via a persistent memory system.
+      </p>
+
+      <div style={{ border: "3px solid #000", padding: "20px 24px", marginBottom: 32, fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 2, background: "#f9f9f9" }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>HOW IT WORKS</div>
+        <div>Every 30s: read pool state from Liquidation Bot</div>
+        <div style={{ paddingLeft: 24 }}>├─ No positions HF &lt; 1.1 → skip (no AI call, no cost)</div>
+        <div style={{ paddingLeft: 24 }}>├─ Risky positions found → call Gemini with pool state + history</div>
+        <div style={{ paddingLeft: 24 }}>├─ Gemini returns priority list + reasoning</div>
+        <div style={{ paddingLeft: 24 }}>├─ Save decision to coordinator.json (read by Liquidation Bot)</div>
+        <div style={{ paddingLeft: 24 }}>└─ Record outcome after execution → memory improves over time</div>
+      </div>
+
+      <Table
+        headers={["Property", "Value"]}
+        rows={[
+          ["AI model", "Gemini 2.0 Flash (primary) + DeepSeek V3 (fallback)"],
+          ["Trigger", "Only when positions HF < 1.1 exist"],
+          ["Interval", "30 seconds"],
+          ["Memory", "Rolling 20 decisions + auto-summary"],
+          ["Infrastructure", "PM2 on VPS alongside Liquidation Bot"],
+        ]}
+      />
+
+      {/* ── Liquidation Bot ─────────────────────────────────────── */}
+      <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 28, marginBottom: 8, marginTop: 40 }}>
+        02 — LIQUIDATION BOT
+      </h2>
+      <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#444", lineHeight: 1.8, marginBottom: 28 }}>
+        Executes the Coordinator's strategy. Monitors every borrower position every block (~0.48s) and
+        liquidates positions with HF&nbsp;&lt;&nbsp;1.0, earning a 5% collateral bonus.
+        Registered on-chain as an AI agent via <strong>Arc ERC-8004</strong> (Agent ID #30907).
+        Uses Circle Developer-Controlled Wallets for gasless execution.
       </p>
 
       <div style={{ border: "3px solid #000", padding: "20px 24px", marginBottom: 32, fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 2, background: "#f9f9f9" }}>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>HOW IT WORKS</div>
         <div>watchBlocks (~0.48s per block)</div>
         <div style={{ paddingLeft: 24, color: "#666" }}>└─ isRunning guard — skips if previous iteration still running</div>
-        <div style={{ paddingLeft: 24 }}>├─ Every 20 blocks: scan Borrow events (incremental, saves progress)</div>
+        <div style={{ paddingLeft: 24 }}>├─ Every 20 blocks: scan Borrow events (incremental)</div>
         <div style={{ paddingLeft: 24 }}>├─ Oracle stale &gt; 15s → push fresh Pyth prices on-chain</div>
         <div style={{ paddingLeft: 24 }}>├─ Multicall3: read HF for ALL borrowers in 1 RPC call</div>
+        <div style={{ paddingLeft: 24 }}>├─ Sort by Coordinator priority (falls back to rule-based if stale)</div>
         <div style={{ paddingLeft: 24 }}>└─ HF &lt; 1.0 → approve → liquidate → earn 5% bonus</div>
       </div>
 
@@ -41,33 +74,59 @@ export default function AgentsPage() {
           ["Reaction time", "~15 seconds (oracle staleness threshold)"],
           ["Collateral bonus", "5% of debt value"],
           ["Max repay per tx", "50% of borrower's debt (close factor)"],
-          ["Bot wallet", "0x9E47c5EE0b1174a5F4450553CE45Fdcf6bCd036a"],
+          ["Bot wallet (Circle SCA)", "0x69efc5abdc9f9f1e90f59261c0fdf601e53291af"],
           ["Arc ERC-8004 ID", "#30907"],
           ["Infrastructure", "PM2 on VPS — auto-restarts on crash"],
-          ["Auto-refill", "Transfers 100 USDC from deployer when gas < 10 USDC"],
-        ]}
-      />
-
-      <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 20, marginBottom: 12, marginTop: 8 }}>ERROR HANDLING</h3>
-      <Table
-        headers={["Error", "What happens"]}
-        rows={[
-          ["Oracle update fails / timeout 10s", "Skip, try again next block"],
-          ["Position already liquidated by someone else", "Tx reverts, bot catches error, continues"],
-          ["Bot wallet out of gas", "Oracle updates skip — auto-refill triggers"],
-          ["Bot crashes", "PM2 restarts it within 5 seconds, resumes from saved block"],
-          ["VPS reboots", "PM2 startup configured — bot restarts automatically"],
         ]}
       />
 
       <WarnBox>
-        <strong>Testnet only.</strong> The Liquidation Bot uses testnet tokens with no real-world value.
-        The bot wallet holds xUSDC as liquidation capital — earned profits accumulate there.
+        <strong>Testnet only.</strong> The bot wallet holds xUSDC as liquidation capital.
+        Anyone can run their own liquidation bot — see the <a href="https://github.com/PigAssasin/agentloan" target="_blank" rel="noopener noreferrer" style={{ color: "#000", fontWeight: 600 }}>GitHub README</a> for setup instructions.
       </WarnBox>
+
+      {/* ── Signal Agent ─────────────────────────────────────── */}
+      <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 28, marginBottom: 8, marginTop: 40 }}>
+        03 — SIGNAL AGENT
+      </h2>
+      <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#444", lineHeight: 1.8, marginBottom: 28 }}>
+        A marketplace for early warning signals. Scans all borrower positions every 5 seconds for
+        HF&nbsp;&lt;&nbsp;1.1 and sells these warnings to liquidation bots via the{" "}
+        <strong>x402 payment protocol</strong>. Bots pay 1 xUSDC for 1,000 signals (24h session)
+        and get a 15-30 second head start on liquidations.
+        Registered on-chain as an AI agent via <strong>Arc ERC-8004</strong> (Agent ID #31772).
+      </p>
+
+      <div style={{ border: "3px solid #000", padding: "20px 24px", marginBottom: 32, fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 2, background: "#f9f9f9" }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>X402 PAYMENT FLOW</div>
+        <div>Bot: GET /v1/signals → 402 Payment Required</div>
+        <div style={{ paddingLeft: 24 }}>└─ Response: {"{ price: '1 xUSDC', payTo: '0x...' }"}</div>
+        <div>Bot: transfer 1 xUSDC on-chain</div>
+        <div>Bot: GET /v1/signals + X-Payment-Tx: 0x...</div>
+        <div style={{ paddingLeft: 24 }}>└─ Response: {"{ signals: [...], sessionId, remaining: 1000 }"}</div>
+        <div>Bot: reuse session for up to 1,000 requests / 24h</div>
+      </div>
+
+      <Table
+        headers={["Property", "Value"]}
+        rows={[
+          ["Price", "1 xUSDC per session"],
+          ["Signals per session", "1,000 (24 hours)"],
+          ["Scan interval", "5 seconds"],
+          ["HF threshold", "< 1.1 (early warning)"],
+          ["Agent wallet", "0x555cc39B822392E45A0B69776d6AeEadfcC5af3D"],
+          ["Arc ERC-8004 ID", "#31772"],
+        ]}
+      />
+
+      <InfoBox>
+        Anyone can run their own Signal Agent and earn xUSDC from bot subscriptions.
+        See <a href="https://github.com/PigAssasin/agentloan/tree/main/signal-agent" target="_blank" rel="noopener noreferrer" style={{ color: "#000", fontWeight: 600 }}>signal-agent/README.md</a> for setup instructions.
+      </InfoBox>
 
       {/* ── Guardian Agent ─────────────────────────────────────── */}
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 28, marginBottom: 8, marginTop: 40 }}>
-        02 — GUARDIAN AGENT
+        04 — GUARDIAN AGENT
       </h2>
       <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#444", lineHeight: 1.8, marginBottom: 28 }}>
         A browser-based agent that monitors your personal Health Factor and alerts you
@@ -88,15 +147,12 @@ export default function AgentsPage() {
       </Step>
       <Step n={2} title="Set your HF threshold">
         Enter a Health Factor threshold (e.g. 1.5). The alert fires when your HF drops below this.
-        A higher threshold gives you more warning time before liquidation.
       </Step>
       <Step n={3} title="Save — Guardian is now watching">
-        Your threshold is saved in localStorage. The Guardian checks your HF on every page load
-        and whenever new data arrives from the chain (~every 3 seconds).
+        Threshold is saved locally. The Guardian checks your HF on every page load and every ~3 seconds.
       </Step>
       <Step n={4} title="When an alert fires — repay immediately">
-        The alert shows the exact xUSDC amount to repay to restore HF above your target.
-        Click Repay in the POSITIONS tab to execute.
+        The alert shows the exact xUSDC amount needed. Click Repay in the POSITIONS tab.
       </Step>
 
       <InfoBox title="How is the repay amount calculated?">
@@ -107,11 +163,11 @@ export default function AgentsPage() {
 
       {/* ── Yield Optimizer ─────────────────────────────────────── */}
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 28, marginBottom: 8, marginTop: 40 }}>
-        03 — YIELD OPTIMIZER
+        05 — YIELD OPTIMIZER
       </h2>
       <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#444", lineHeight: 1.8, marginBottom: 28 }}>
         Monitors the xUSDC supply APY and notifies you when the rate exceeds your target.
-        When APY crosses your threshold, a deposit recommendation appears — one click to supply.
+        When APY crosses your threshold, a deposit recommendation appears.
       </p>
 
       <div style={{ border: "3px solid #000", padding: "20px 24px", marginBottom: 32, background: "#f9f9f9", fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 2 }}>
@@ -123,8 +179,7 @@ export default function AgentsPage() {
       </div>
 
       <InfoBox>
-        APY is variable — it changes with utilization. High utilization = high borrow demand = high supply APY.
-        The Yield Optimizer updates every 4 seconds when the dashboard is open.
+        APY is variable — it changes with pool utilization. The Yield Optimizer updates every 4 seconds.
       </InfoBox>
 
       {/* ── Comparison ─────────────────────────────────────────── */}
@@ -133,19 +188,21 @@ export default function AgentsPage() {
       </h2>
 
       <Table
-        headers={["Agent", "Who benefits", "Runs where", "Action required"]}
+        headers={["Agent", "Who benefits", "Runs where", "Trigger"]}
         rows={[
-          ["Liquidation Bot", "Protocol + bot operator", "VPS (24/7 autonomous)", "None — fully automatic"],
-          ["Guardian Agent", "You (borrower)", "Your browser", "Click Repay when alert fires"],
-          ["Yield Optimizer", "You (lender)", "Your browser", "Click Supply when alert fires"],
+          ["Coordinator", "Protocol efficiency", "VPS (every 30s)", "Positions HF < 1.1"],
+          ["Liquidation Bot", "Protocol + bot operator", "VPS (every block)", "HF < 1.0"],
+          ["Signal Agent", "Signal Agent operator", "VPS (every 5s)", "Positions HF < 1.1"],
+          ["Guardian Agent", "You (borrower)", "Your browser", "Your HF < threshold"],
+          ["Yield Optimizer", "You (lender)", "Your browser", "APY > threshold"],
         ]}
       />
 
       <div style={{ border: "3px solid #000", padding: "24px", background: "#fff", marginTop: 8 }}>
-        <div style={{ fontFamily: "var(--font-heading)", fontSize: 16, marginBottom: 12 }}>LIVE BOT STATUS</div>
+        <div style={{ fontFamily: "var(--font-heading)", fontSize: 16, marginBottom: 12 }}>LIVE AGENT STATUS</div>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#444", margin: 0, lineHeight: 1.7 }}>
-          Check the current bot wallet balance, recent liquidations, and live status in the{" "}
-          <strong>Dashboard → AGENTS</strong> tab. The panel refreshes every 30 seconds.
+          Check real-time bot status, Signal Agent stats, and active liquidation jobs in the{" "}
+          <strong>Dashboard → AGENTS / SIGNAL / JOBS</strong> tabs.
         </p>
       </div>
     </DocPage>
