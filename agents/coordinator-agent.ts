@@ -79,16 +79,20 @@ Respond ONLY with valid JSON:
 }
 
 function parseDecision(text: string, fallbackPriority: string[]): Pick<CoordinatorDecision, "priority" | "skip" | "strategy" | "reasoning"> {
+  // Strip thinking tags (Gemini 2.5 Flash adds these)
+  const cleaned = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, "");
+  const start   = cleaned.indexOf("{");
+  const end     = cleaned.lastIndexOf("}");
+  const jsonStr = start !== -1 && end > start ? cleaned.slice(start, end + 1) : null;
+
+  console.log(`  [coordinator] parse debug: len=${text.length} start=${start} end=${end} jsonLen=${jsonStr?.length ?? 0}`);
+
+  if (!jsonStr) {
+    console.warn(`  [coordinator] no JSON found in response (len=${text.length})`);
+    return { priority: fallbackPriority, skip: [], strategy: "fallback_rule_based", reasoning: "no JSON in response" };
+  }
+
   try {
-    // Strip thinking tags (Gemini 2.5 Flash adds these)
-    const cleaned = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, "");
-
-    // Find the JSON object by first { and last } — handles any wrapper
-    const start = cleaned.indexOf("{");
-    const end   = cleaned.lastIndexOf("}");
-    const jsonStr = start !== -1 && end > start ? cleaned.slice(start, end + 1) : null;
-    if (!jsonStr) throw new Error("no JSON found");
-
     const parsed = JSON.parse(jsonStr);
     return {
       priority:  Array.isArray(parsed.priority)  ? parsed.priority  : fallbackPriority,
@@ -97,7 +101,7 @@ function parseDecision(text: string, fallbackPriority: string[]): Pick<Coordinat
       reasoning: parsed.reasoning ?? "",
     };
   } catch (e: any) {
-    console.warn(`  [coordinator] JSON parse error: ${e.message} | jsonStr: ${jsonStr?.slice(0,100)}`);
+    console.warn(`  [coordinator] JSON.parse failed: ${e.message}`);
     return { priority: fallbackPriority, skip: [], strategy: "fallback_rule_based", reasoning: "LLM parse failed" };
   }
 }
