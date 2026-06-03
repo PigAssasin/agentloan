@@ -80,17 +80,23 @@ Respond ONLY with valid JSON:
 
 function parseDecision(text: string, fallbackPriority: string[]): Pick<CoordinatorDecision, "priority" | "skip" | "strategy" | "reasoning"> {
   try {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("no JSON found");
-    const parsed = JSON.parse(match[0]);
+    // Strip thinking tags (Gemini 2.5 Flash adds these)
+    const stripped = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, "").trim();
+
+    // Try JSON code block first, then bare JSON
+    const codeBlock = stripped.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    const bareJson  = stripped.match(/\{[\s\S]*\}/);
+    const jsonStr   = codeBlock?.[1] ?? bareJson?.[0];
+    if (!jsonStr) throw new Error("no JSON found");
+
+    const parsed = JSON.parse(jsonStr);
     return {
-      priority: Array.isArray(parsed.priority) ? parsed.priority : fallbackPriority,
-      skip:     Array.isArray(parsed.skip) ? parsed.skip : [],
-      strategy: parsed.strategy ?? "llm_decided",
+      priority:  Array.isArray(parsed.priority)  ? parsed.priority  : fallbackPriority,
+      skip:      Array.isArray(parsed.skip)       ? parsed.skip      : [],
+      strategy:  parsed.strategy  ?? "llm_decided",
       reasoning: parsed.reasoning ?? "",
     };
   } catch {
-    // Fallback: keep original order
     return { priority: fallbackPriority, skip: [], strategy: "fallback_rule_based", reasoning: "LLM parse failed" };
   }
 }
