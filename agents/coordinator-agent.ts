@@ -81,14 +81,12 @@ Respond ONLY with valid JSON:
 function parseDecision(text: string, fallbackPriority: string[]): Pick<CoordinatorDecision, "priority" | "skip" | "strategy" | "reasoning"> {
   try {
     // Strip thinking tags (Gemini 2.5 Flash adds these)
-    let stripped = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, "").trim();
+    const cleaned = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, "");
 
-    // Strip markdown code block markers (```json ... ```)
-    stripped = stripped.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-
-    // Extract JSON object (greedy — handles nested {})
-    const bareJson = stripped.match(/\{[\s\S]*\}/);
-    const jsonStr  = bareJson?.[0];
+    // Find the JSON object by first { and last } — handles any wrapper
+    const start = cleaned.indexOf("{");
+    const end   = cleaned.lastIndexOf("}");
+    const jsonStr = start !== -1 && end > start ? cleaned.slice(start, end + 1) : null;
     if (!jsonStr) throw new Error("no JSON found");
 
     const parsed = JSON.parse(jsonStr);
