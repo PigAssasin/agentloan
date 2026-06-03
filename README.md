@@ -156,6 +156,7 @@ JOBS tab (browser)
 
 | Agent | ERC-8004 ID | Address |
 |---|---|---|
+| Coordinator Agent | #34625 | `0x4dcE343E9c35112AAF9Ddce566689C3f36C73482` |
 | Liquidation Bot | #30907 | `0x9E47c5EE0b1174a5F4450553CE45Fdcf6bCd036a` |
 | Signal Agent | #31772 | `0x555cc39B822392E45A0B69776d6AeEadfcC5af3D` |
 

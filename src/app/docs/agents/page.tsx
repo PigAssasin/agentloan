@@ -42,6 +42,8 @@ export default function AgentsPage() {
           ["Trigger", "Only when positions HF < 1.1 exist"],
           ["Interval", "30 seconds"],
           ["Memory", "Rolling 20 decisions + auto-summary"],
+          ["Agent wallet", "0x4dcE343E9c35112AAF9Ddce566689C3f36C73482"],
+          ["Arc ERC-8004 ID", "#34625"],
           ["Infrastructure", "PM2 on VPS alongside Liquidation Bot"],
         ]}
       />
