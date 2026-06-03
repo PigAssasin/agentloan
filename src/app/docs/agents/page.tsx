@@ -26,27 +26,39 @@ export default function AgentsPage() {
       </p>
 
       <div style={{ border: "3px solid #000", padding: "20px 24px", marginBottom: 32, fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 2, background: "#f9f9f9" }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>HOW IT WORKS</div>
-        <div>Every 30s: read pool state from Liquidation Bot</div>
-        <div style={{ paddingLeft: 24 }}>├─ No positions HF &lt; 1.1 → skip (no AI call, no cost)</div>
-        <div style={{ paddingLeft: 24 }}>├─ Risky positions found → call Gemini with pool state + history</div>
-        <div style={{ paddingLeft: 24 }}>├─ Gemini returns priority list + reasoning</div>
-        <div style={{ paddingLeft: 24 }}>├─ Save decision to coordinator.json (read by Liquidation Bot)</div>
-        <div style={{ paddingLeft: 24 }}>└─ Record outcome after execution → memory improves over time</div>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>TWO-TIER DECISION SYSTEM</div>
+        <div>Every 30s: read all positions from bot shared state</div>
+        <div style={{ paddingLeft: 24, color: "#666" }}>Tier 1 — Scoring function (always, $0, scales to 1000+)</div>
+        <div style={{ paddingLeft: 24 }}>├─ Score = profit × 0.4 + urgency(HF) × 0.6</div>
+        <div style={{ paddingLeft: 24 }}>└─ Ranks ALL positions instantly, writes to coordinator.json</div>
+        <div style={{ paddingLeft: 24, color: "#666", marginTop: 8 }}>Tier 2 — Gemini AI (only on real events)</div>
+        <div style={{ paddingLeft: 24 }}>├─ Trigger A: BTC/collateral price change &gt; 1.5%</div>
+        <div style={{ paddingLeft: 24 }}>├─ Trigger B: New position crosses HF 1.05 or 1.02 threshold</div>
+        <div style={{ paddingLeft: 24 }}>├─ Minimum 5 minutes between AI calls</div>
+        <div style={{ paddingLeft: 24 }}>├─ AI reasons about top 10 most urgent only</div>
+        <div style={{ paddingLeft: 24 }}>└─ AI priority (top 10) + scoring order (everyone else) = final list</div>
       </div>
 
       <Table
         headers={["Property", "Value"]}
         rows={[
-          ["AI model", "Gemini 2.0 Flash (primary) + DeepSeek V3 (fallback)"],
-          ["Trigger", "Only when positions HF < 1.1 exist"],
-          ["Interval", "30 seconds"],
+          ["AI model", "Gemini 2.5 Flash (primary) + DeepSeek V3 (fallback)"],
+          ["Normal trigger", "Scoring function — instant, $0, unlimited scale"],
+          ["AI trigger", "Price change >1.5% or new critical threshold crossed"],
+          ["AI scope", "Top 10 most urgent positions only"],
+          ["Min AI interval", "5 minutes"],
           ["Memory", "Rolling 20 decisions + auto-summary"],
           ["Agent wallet", "0x4dcE343E9c35112AAF9Ddce566689C3f36C73482"],
           ["Arc ERC-8004 ID", "#34625"],
           ["Infrastructure", "PM2 on VPS alongside Liquidation Bot"],
         ]}
       />
+
+      <InfoBox title="Cost at scale">
+        With 100+ users: scoring function handles all decisions for free. Gemini is only called
+        when the market moves (&gt;1.5% price change) or a position enters critical zone — roughly
+        10–20 times per day regardless of user count. Cost: ~$0.01–0.02/day.
+      </InfoBox>
 
       {/* ── Liquidation Bot ─────────────────────────────────────── */}
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 28, marginBottom: 8, marginTop: 40 }}>

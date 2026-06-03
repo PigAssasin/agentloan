@@ -115,18 +115,22 @@ Go to [agentloan.vercel.app/app](https://agentloan.vercel.app/app) → **JOBS** 
 ## Agent Architecture
 
 ```
-Coordinator Agent (every 30s, only when positions at risk)
-  └─ reads pool state from Liquidation Bot
-  └─ calls Gemini AI to decide liquidation priority
-  └─ writes strategy to shared state file
-  └─ learns from past outcomes (memory system)
+Coordinator Agent (every 30s, ERC-8004 #34625)
+  └─ scoring function ranks ALL positions instantly ($0, scales to 1000+)
+  └─ calls Gemini AI only on real events:
+       • BTC/collateral price change > 1.5%
+       • New position crosses critical threshold (HF < 1.05 or 1.02)
+       • 5-minute minimum between AI calls
+  └─ AI reasons about top 10 most urgent — scoring handles the rest
+  └─ merges AI priority (top 10) + scoring order (everyone else)
+  └─ learns from outcomes via persistent memory
 
-Signal Agent (every 5s)
+Signal Agent (every 5s, ERC-8004 #31772)
   └─ scans all positions for HF < 1.1
   └─ sells early warnings via x402: 1 xUSDC = 1,000 signals (24h)
 
-Liquidation Bot (every block, ~0.48s)
-  └─ reads Coordinator strategy for priority ordering
+Liquidation Bot (every block, ~0.48s, ERC-8004 #30907)
+  └─ reads Coordinator priority (AI + scoring combined)
   └─ buys signals from Signal Agent (15-30s head start)
   └─ HF < 1.0 → approve → liquidate → earn 5% bonus
   └─ Circle SCA wallet: gasless, no private key on server
