@@ -45,6 +45,42 @@ import { checkAndRefill }              from "./lib/auto-refill";
 import { isCircleEnabled, executeWithStrategy, getBotBalanceAddress } from "./lib/execute-strategy";
 import { createLiquidationJob, submitLiquidationProof, closeJob, getJobId } from "./lib/job-manager";
 import { fetchSignals } from "./lib/signal-client";
+import * as fs   from "fs";
+import * as path from "path";
+import type { UserPosition } from "./lib/pool-reader";
+
+const COORDINATOR_FILE   = "agents/state/coordinator.json";
+const COORDINATOR_MAX_AGE_MS = 2 * 60 * 1000;  // 2 minutes — stale = ignore
+
+function applyCoordinatorPriority(positions: UserPosition[]): UserPosition[] {
+  try {
+    const file = path.resolve(COORDINATOR_FILE);
+    if (!fs.existsSync(file)) return positions;
+
+    const data = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!data?.priority || !data?.timestamp) return positions;
+
+    // Ignore stale decisions (coordinator may be down)
+    if (Date.now() - data.timestamp > COORDINATOR_MAX_AGE_MS) return positions;
+
+    const priority: string[] = data.priority.map((a: string) => a.toLowerCase());
+    const skip: string[]     = (data.skip ?? []).map((a: string) => a.toLowerCase());
+
+    // Remove skipped positions, then sort by coordinator order
+    return positions
+      .filter(p => !skip.includes(p.address.toLowerCase()))
+      .sort((a, b) => {
+        const ia = priority.indexOf(a.address.toLowerCase());
+        const ib = priority.indexOf(b.address.toLowerCase());
+        if (ia === -1 && ib === -1) return 0;
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      });
+  } catch {
+    return positions;  // always fall back to original order
+  }
+}
 
 // Wrap oracle update with timeout — prevents bot from hanging if tx stalls
 async function safeUpdateOracle(wallet: ReturnType<typeof createBotWallet>): Promise<void> {
@@ -168,8 +204,14 @@ async function main() {
           }
         }
 
-        // ── Step 4: Liquidate + notify (Circle SCA or private key) ────────
-        for (const pos of liquidatable) {
+        // ── Step 4: Sort by coordinator priority (if available + fresh) ──
+        const sorted = applyCoordinatorPriority(liquidatable);
+        if (sorted[0]?.address !== liquidatable[0]?.address) {
+          console.log(`  [coordinator] reordered: ${sorted.map(p => p.address.slice(0,8)).join(" → ")}`);
+        }
+
+        // ── Step 5: Liquidate + notify (Circle SCA or private key) ────────
+        for (const pos of sorted) {
           const txHash = await executeWithStrategy(pos, botAddr as `0x${string}`);
           if (txHash) {
             console.log(`\n  Liquidated ${pos.address} | TX: ${txHash}`);

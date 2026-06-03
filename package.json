@@ -11,6 +11,7 @@
     "coverage": "hardhat coverage",
     "agent:dry": "DRY_RUN=true TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node agents/liquidation-bot.ts",
     "agent:run": "DRY_RUN=false TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node agents/liquidation-bot.ts",
+    "coordinator:run": "TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node agents/coordinator-agent.ts",
     "agent:register": "TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node scripts/register-agent.ts",
     "agent:circle-setup": "TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node scripts/circle-setup.ts",
     "signal:register": "TS_NODE_PROJECT=tsconfig.hardhat.json npx ts-node scripts/register-signal-agent.ts",
