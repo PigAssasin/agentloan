@@ -144,8 +144,16 @@ async function main() {
     try { return createBotWallet(); } catch { return null; }
   })();
 
-  // Accumulates known borrowers across all runs
+  // Restore borrowers from shared state file (survives restarts)
   const knownBorrowers = new Set<`0x${string}`>();
+  try {
+    const savedFile = path.resolve(KNOWN_BORROWERS_FILE);
+    if (fs.existsSync(savedFile)) {
+      const saved: string[] = JSON.parse(fs.readFileSync(savedFile, "utf8"));
+      saved.forEach(b => knownBorrowers.add(b as `0x${string}`));
+      console.log(`   Restored ${knownBorrowers.size} borrowers from cache`);
+    }
+  } catch {}
 
   let isRunning  = false;
   let blockCount = 0;
