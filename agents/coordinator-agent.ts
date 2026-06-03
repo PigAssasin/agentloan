@@ -15,18 +15,24 @@ import * as fs   from "fs";
 import * as path from "path";
 import { formatUnits } from "viem";
 import { publicClient, getPositionsBatch } from "./lib/pool-reader";
-import { callLLM, shouldCallLLM, markCalled } from "./lib/gemini-client";
+import { callLLM } from "./lib/gemini-client";
 import {
   loadMemory, saveMemory, addDecision,
   formatMemoryForPrompt, type MemoryEntry,
 } from "./lib/coordinator-memory";
 import { BOT_CONFIG } from "./config";
 
-const COORDINATOR_FILE   = "agents/state/coordinator.json";
+const COORDINATOR_FILE     = "agents/state/coordinator.json";
 const KNOWN_BORROWERS_FILE = "agents/state/known-borrowers.json";
-const SCAN_INTERVAL_MS   = 30_000;
-const HF_RISK_THRESHOLD  = 1.1;
-const WAD = 10n ** 18n;
+const SCAN_INTERVAL_MS     = 30_000;
+const HF_RISK_THRESHOLD    = 1.1;
+const WAD                  = 10n ** 18n;
+const TOP_N_FOR_AI         = 10;   // only top 10 most urgent get AI reasoning
+const MIN_LLM_INTERVAL_MS  = 5 * 60_000; // 5 minutes minimum between calls
+
+// Track triggers
+let lastBtcPrice = 0;
+const seenCritical = new Set<string>(); // addresses that crossed 1.05
 
 export interface CoordinatorDecision {
   timestamp: number;
@@ -146,21 +152,68 @@ async function runCoordinator(): Promise<void> {
         return;
       }
 
-      // State hash — skip LLM if positions unchanged since last call
-      const stateHash = risky.map(p => `${p.address}:${(Number(p.healthFactor) / 1e18).toFixed(3)}`).join(",");
-      if (!shouldCallLLM(stateHash)) {
-        process.stdout.write("~"); // cached, no LLM call
+      // ── Scoring function for all positions (free, instant, scales to 1000+) ──
+      const sorted = risky
+        .map(p => {
+          const hf      = Number(p.healthFactor) / 1e18;
+          const debtUSD = Number(formatUnits(p.totalDebtUSD, 18));
+          const bonus   = debtUSD * 0.025; // 5% on 50% close factor
+          const urgency = hf < 1.0 ? 100 : hf < 1.02 ? 80 : hf < 1.05 ? 60 : 40;
+          const score   = bonus * 0.4 + urgency * 0.6;
+          return { ...p, hf, debtUSD, bonus, score };
+        })
+        .sort((a, b) => b.score - a.score);
+
+      // ── Decide whether to call LLM ─────────────────────────────────────────
+      // Trigger 1: New position crossed critical threshold (1.05 or 1.02)
+      const newCritical = sorted.filter(p =>
+        (p.hf < 1.05 || p.hf < 1.02) && !seenCritical.has(p.address)
+      );
+      newCritical.forEach(p => seenCritical.add(p.address));
+
+      // Trigger 2: Oracle price changed >1.5% (market event)
+      let btcPriceChanged = false;
+      try {
+        const priceRaw = await publicClient.readContract({
+          address: BOT_CONFIG.PRICE_ORACLE as `0x${string}`,
+          abi: [{ name: "getPrice", type: "function", stateMutability: "view", inputs: [{ name: "token", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const,
+          functionName: "getPrice",
+          args: [BOT_CONFIG.TOKENS[2].address as `0x${string}`], // xclrBTC
+        }) as bigint;
+        const btcPrice = Number(priceRaw) / 1e18;
+        if (lastBtcPrice > 0 && Math.abs(btcPrice - lastBtcPrice) / lastBtcPrice > 0.015) {
+          btcPriceChanged = true;
+        }
+        lastBtcPrice = btcPrice;
+      } catch {}
+
+      const timeSinceLastCall = Date.now() - (JSON.parse(fs.existsSync(path.resolve(COORDINATOR_FILE)) ? fs.readFileSync(path.resolve(COORDINATOR_FILE), "utf8") : "{}").timestamp ?? 0);
+      const shouldCallAI = (newCritical.length > 0 || btcPriceChanged) && timeSinceLastCall > MIN_LLM_INTERVAL_MS;
+
+      if (!shouldCallAI) {
+        // Write scoring-based decision without AI
+        const fallbackDecision: CoordinatorDecision = {
+          timestamp: Date.now(),
+          model: "scoring-function",
+          priority: sorted.map(p => p.address),
+          skip: [],
+          strategy: `Score-based: top urgency ${sorted[0]?.hf.toFixed(3) ?? "?"} HF`,
+          reasoning: `${risky.length} positions ranked by profit×urgency score. No LLM needed.`,
+        };
+        writeDecision(fallbackDecision);
+        process.stdout.write("s"); // scoring
         return;
       }
 
-      console.log(`\n  [coordinator] ${risky.length} risky position(s) — calling Gemini...`);
+      // ── AI reasoning — only top 10 most urgent ────────────────────────────
+      const top10 = sorted.slice(0, TOP_N_FOR_AI);
+      console.log(`\n  [coordinator] ${risky.length} positions (${newCritical.length} new critical, btcChange=${btcPriceChanged}) — calling AI for top ${top10.length}...`);
 
-      // Format positions for LLM
-      const formatted = risky.map(p => ({
-        address:  p.address,
-        hf:       Number(p.healthFactor) / 1e18,
-        debtUSD:  Number(formatUnits(p.totalDebtUSD, 18)),
-        bonusUSD: Number(formatUnits(p.totalDebtUSD, 18)) * 0.05 * 0.5,  // 5% bonus on 50% close factor
+      const formatted = top10.map(p => ({
+        address:    p.address,
+        hf:         p.hf,
+        debtUSD:    p.debtUSD,
+        bonusUSD:   p.bonus,
         collateral: "mixed",
       }));
 
@@ -171,10 +224,7 @@ async function runCoordinator(): Promise<void> {
 
       // Call LLM
       const { text, model } = await callLLM(prompt);
-      markCalled(stateHash);
-      const fallbackOrder   = risky
-        .sort((a, b) => Number(a.healthFactor - b.healthFactor))
-        .map(p => p.address);
+      const fallbackOrder = sorted.map(p => p.address);
 
       const parsed = parseDecision(text, fallbackOrder);
 
@@ -185,6 +235,11 @@ async function runCoordinator(): Promise<void> {
       };
 
       writeDecision(decision);
+
+      // Merge AI top-10 priority with scoring order for positions 11+
+      const aiAddresses = new Set(decision.priority.map(a => a.toLowerCase()));
+      const rest = sorted.filter(p => !aiAddresses.has(p.address.toLowerCase())).map(p => p.address);
+      decision.priority = [...decision.priority, ...rest];
 
       // Save to memory
       const newMem = addDecision(memory, {
