@@ -96,7 +96,8 @@ function parseDecision(text: string, fallbackPriority: string[]): Pick<Coordinat
       strategy:  parsed.strategy  ?? "llm_decided",
       reasoning: parsed.reasoning ?? "",
     };
-  } catch {
+  } catch (e: any) {
+    console.warn(`  [coordinator] JSON parse error: ${e.message} | jsonStr: ${jsonStr?.slice(0,100)}`);
     return { priority: fallbackPriority, skip: [], strategy: "fallback_rule_based", reasoning: "LLM parse failed" };
   }
 }
