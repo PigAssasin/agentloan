@@ -22,5 +22,23 @@ module.exports = {
       log_date_format: "YYYY-MM-DD HH:mm:ss",
       merge_logs: true,
     },
+    {
+      name:        "coordinator-agent",
+      script:      "./node_modules/.bin/ts-node",
+      args:        "-P tsconfig.hardhat.json agents/coordinator-agent.ts",
+      cwd:         "/root/arcbank",
+      interpreter: "node",
+      env: {
+        TS_NODE_PROJECT:     "tsconfig.hardhat.json",
+        NEXT_PUBLIC_ARC_RPC: "https://rpc.testnet.arc.network",
+      },
+      restart_delay:  10000,
+      max_restarts:   10,
+      min_uptime:     "15s",
+      out_file:  "logs/coordinator-out.log",
+      error_file:"logs/coordinator-err.log",
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
+      merge_logs: true,
+    },
   ],
 };

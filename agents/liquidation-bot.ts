@@ -45,6 +45,7 @@ import { checkAndRefill }              from "./lib/auto-refill";
 import { isCircleEnabled, executeWithStrategy, getBotBalanceAddress } from "./lib/execute-strategy";
 import { createLiquidationJob, submitLiquidationProof, closeJob, getJobId } from "./lib/job-manager";
 import { fetchSignals } from "./lib/signal-client";
+import { loadMemory, saveMemory, updateOutcome } from "./lib/coordinator-memory";
 import * as fs   from "fs";
 import * as path from "path";
 import type { UserPosition } from "./lib/pool-reader";
@@ -80,6 +81,36 @@ function applyCoordinatorPriority(positions: UserPosition[]): UserPosition[] {
       });
   } catch {
     return positions;  // always fall back to original order
+  }
+}
+
+// ── ERC-8004 Reputation ───────────────────────────────────────────────────
+// Called after each successful liquidation. Uses deployer as validator
+// (ERC-8004 forbids agent owner from rating themselves).
+const REPUTATION_REGISTRY = "0x8004B663056A597Dffe9eCcC1965A193B7388713" as const;
+const BOT_AGENT_ID        = process.env.BOT_AGENT_ID ? BigInt(process.env.BOT_AGENT_ID) : 30907n;
+
+async function recordReputation(
+  borrower:  string,
+  profitUSD: number,
+  wallet:    ReturnType<typeof createBotWallet>,
+): Promise<void> {
+  try {
+    const { keccak256, toHex, parseAbi } = await import("viem");
+    const score = profitUSD > 1000 ? 95 : profitUSD > 100 ? 85 : 75;
+    const tag   = `liquidation_success_${borrower.slice(0, 8)}`;
+    const hash  = keccak256(toHex(tag));
+
+    await wallet.writeContract({
+      address:      REPUTATION_REGISTRY,
+      abi:          parseAbi(["function giveFeedback(uint256,int128,uint8,string,string,string,string,bytes32) external"]),
+      functionName: "giveFeedback",
+      args:         [BOT_AGENT_ID, BigInt(score), 0, tag, "", "", "", hash],
+    } as any);
+    console.log(`  [reputation] +${score} for liquidation of ${borrower.slice(0, 10)}`);
+  } catch (e: any) {
+    // Never block liquidation flow
+    console.warn(`  [reputation] skipped: ${e.message?.slice(0, 50)}`);
   }
 }
 
@@ -216,23 +247,41 @@ async function main() {
           console.log(`  [coordinator] reordered: ${sorted.map(p => p.address.slice(0,8)).join(" → ")}`);
         }
 
-        // ── Step 5: Liquidate + notify (Circle SCA or private key) ────────
+        // ── Step 5: Liquidate + notify + track outcomes ───────────────────
         for (const pos of sorted) {
+          const debtRepaid = formatUnits(pos.totalDebtUSD / 2n, 18);
+          const profitUSD  = Number(debtRepaid) * 0.05;
+
           const txHash = await executeWithStrategy(pos, botAddr as `0x${string}`);
+
           if (txHash) {
             console.log(`\n  Liquidated ${pos.address} | TX: ${txHash}`);
+
+            // Update coordinator memory — success
+            try {
+              const mem = loadMemory();
+              saveMemory(updateOutcome(mem, pos.address, "success", profitUSD));
+            } catch {}
+
+            // Record ERC-8004 reputation (best-effort, deployer as validator)
+            if (pkWallet && !BOT_CONFIG.DRY_RUN) {
+              recordReputation(pos.address, profitUSD, pkWallet).catch(() => {});
+            }
+
             // Submit ERC-8183 proof (best-effort)
             const jobId = getJobId(pos.address);
             if (jobId !== null && pkWallet) {
               await submitLiquidationProof(jobId, txHash as `0x${string}`, pkWallet).catch(() => {});
               closeJob(pos.address);
             }
-            await notify(liquidationMessage(
-              pos.address,
-              formatUnits(pos.totalDebtUSD / 2n, 18),
-              BOT_CONFIG.DEBT_TOKEN,
-              txHash,
-            ));
+            await notify(liquidationMessage(pos.address, debtRepaid, BOT_CONFIG.DEBT_TOKEN, txHash));
+
+          } else {
+            // txHash null = likely front-run or insufficient balance
+            try {
+              const mem = loadMemory();
+              saveMemory(updateOutcome(mem, pos.address, "front_run", 0));
+            } catch {}
           }
         }
 
