@@ -15,7 +15,7 @@ import * as fs   from "fs";
 import * as path from "path";
 import { formatUnits } from "viem";
 import { publicClient, getPositionsBatch } from "./lib/pool-reader";
-import { callLLM }    from "./lib/gemini-client";
+import { callLLM, shouldCallLLM, markCalled } from "./lib/gemini-client";
 import {
   loadMemory, saveMemory, addDecision,
   formatMemoryForPrompt, type MemoryEntry,
@@ -100,7 +100,7 @@ async function runCoordinator(): Promise<void> {
   const memory = loadMemory();
 
   console.log("\n🧠 AgentLoan Coordinator Agent");
-  console.log(`   LLM: Gemini 2.0 Flash (primary) → DeepSeek V3 (fallback)`);
+  console.log(`   LLM: Gemini 2.5 Flash (primary) → DeepSeek V3 (fallback)`);
   console.log(`   Trigger: only when positions HF < ${HF_RISK_THRESHOLD}`);
   console.log(`   Interval: ${SCAN_INTERVAL_MS / 1000}s\n`);
 
@@ -136,6 +136,13 @@ async function runCoordinator(): Promise<void> {
         return;
       }
 
+      // State hash — skip LLM if positions unchanged since last call
+      const stateHash = risky.map(p => `${p.address}:${(Number(p.healthFactor) / 1e18).toFixed(3)}`).join(",");
+      if (!shouldCallLLM(stateHash)) {
+        process.stdout.write("~"); // cached, no LLM call
+        return;
+      }
+
       console.log(`\n  [coordinator] ${risky.length} risky position(s) — calling Gemini...`);
 
       // Format positions for LLM
@@ -154,6 +161,7 @@ async function runCoordinator(): Promise<void> {
 
       // Call LLM
       const { text, model } = await callLLM(prompt);
+      markCalled(stateHash);
       const fallbackOrder   = risky
         .sort((a, b) => Number(a.healthFactor - b.healthFactor))
         .map(p => p.address);
