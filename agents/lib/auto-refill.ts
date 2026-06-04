@@ -7,8 +7,9 @@ import { privateKeyToAccount } from "viem/accounts";
 import { arcTestnetChain, BOT_CONFIG } from "../config";
 import { publicClient } from "./pool-reader";
 
-const LOW_THRESHOLD  = parseUnits("10",  6); // refill when < 10 USDC
-const REFILL_AMOUNT  = parseUnits("100", 6); // send 100 USDC each time
+// Arc native USDC uses 18 decimals (dual-interface: native=18dec, ERC20=6dec)
+const LOW_THRESHOLD  = parseUnits("10",  18); // refill when < 10 USDC native
+const REFILL_AMOUNT  = parseUnits("100", 18); // send 100 USDC native each time
 
 export async function checkAndRefill(botAddress: Address): Promise<void> {
   const deployerPk = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}` | undefined;
@@ -18,7 +19,7 @@ export async function checkAndRefill(botAddress: Address): Promise<void> {
 
   if (balance >= LOW_THRESHOLD) return; // still sufficient
 
-  console.log(`\n  ⛽ Bot USDC low: ${formatUnits(balance, 6)} — auto-refilling 100 USDC from deployer...`);
+  console.log(`\n  ⛽ Bot USDC low: ${formatUnits(balance, 18)} — auto-refilling 100 USDC from deployer...`);
 
   if (BOT_CONFIG.DRY_RUN) {
     console.log("  [DRY_RUN] Would transfer 100 USDC from deployer");
@@ -39,7 +40,7 @@ export async function checkAndRefill(botAddress: Address): Promise<void> {
 
     await publicClient.waitForTransactionReceipt({ hash });
     const newBal = await publicClient.getBalance({ address: botAddress });
-    console.log(`  ✅ Refill done. New balance: ${formatUnits(newBal, 6)} USDC (tx: ${hash.slice(0, 14)}...)`);
+    console.log(`  ✅ Refill done. New balance: ${formatUnits(newBal, 18)} USDC (tx: ${hash.slice(0, 14)}...)`);
   } catch (e: any) {
     console.warn(`  Refill failed: ${e.message?.slice(0, 80)}`);
   }
