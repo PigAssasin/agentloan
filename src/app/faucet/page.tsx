@@ -14,8 +14,8 @@ const TOKENS = [
     name:      "Arc Testnet USD",
     address:   ARC_TESTNET_CONTRACTS.X_USDC,
     decimals:  6,
-    mintAmount: parseUnits("10000", 6),
-    display:   "10,000",
+    mintAmount: parseUnits("1000", 6),
+    display:   "1,000",
     desc:      "Testnet stablecoin — borrow asset & collateral",
   },
   {
@@ -23,8 +23,8 @@ const TOKENS = [
     name:      "Arc Testnet Euro",
     address:   ARC_TESTNET_CONTRACTS.X_EURC,
     decimals:  6,
-    mintAmount: parseUnits("10000", 6),
-    display:   "10,000",
+    mintAmount: parseUnits("1000", 6),
+    display:   "1,000",
     desc:      "Testnet euro stablecoin — collateral asset",
   },
   {
@@ -32,8 +32,8 @@ const TOKENS = [
     name:      "Arc Testnet BTC",
     address:   ARC_TESTNET_CONTRACTS.X_CLR_BTC,
     decimals:  8,
-    mintAmount: parseUnits("1", 8),
-    display:   "1",
+    mintAmount: parseUnits("0.1", 8),
+    display:   "0.1",
     desc:      "Testnet bitcoin — primary collateral asset",
   },
 ];
@@ -204,7 +204,7 @@ export default function FaucetPage() {
       {/* Footer note */}
       <div style={{ marginTop: 32, padding: "16px 20px", border: "2px solid #dddddd", borderLeft: "5px solid #000000" }}>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "#666666", margin: 0, lineHeight: 1.6 }}>
-          <strong style={{ color: "#000000" }}>Why testnet tokens?</strong> The Arc Testnet faucet gives 20 USDC + 20 EURC + 0.0001 cirBTC every 2 hours — not enough for meaningful lending tests. xUSDC, xEURC and xclrBTC are our own testnet tokens with on-chain 24h cooldown. The pool is pre-seeded with 500k xUSDC + 200k xEURC + 10 xclrBTC.
+          <strong style={{ color: "#000000" }}>Why testnet tokens?</strong> The Arc Testnet faucet gives 20 USDC + 20 EURC + 0.0001 cirBTC every 2 hours — not enough for meaningful lending tests. xUSDC, xEURC and xclrBTC are our own testnet tokens with on-chain 24h cooldown. The pool is pre-seeded with 10M xUSDC + 10M xEURC + 100 xclrBTC.
         </p>
       </div>
     </div>
