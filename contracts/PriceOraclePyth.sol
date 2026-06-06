@@ -17,15 +17,18 @@ import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 contract PriceOraclePyth is Ownable {
     IPyth public immutable pyth;
 
-    uint256 public constant MAX_STALENESS = 3600; // 1 hour
+    uint256 public constant DEFAULT_STALENESS = 3600;   // 1 hour default
+    uint256 public constant STABLE_STALENESS  = 86400;  // 24 hours for stable/slow feeds (EUR)
 
-    mapping(address => bytes32) public priceIds; // token address → Pyth price ID
+    mapping(address => bytes32)  public priceIds;    // token → Pyth price ID
+    mapping(address => uint256)  public stalenessMap; // token → custom max staleness (0 = use default)
 
     error FeedNotFound(address token);
     error StalePrice(address token, uint256 age);
     error NegativePrice(address token);
 
     event FeedSet(address indexed token, bytes32 indexed priceId);
+    event StalenessSet(address indexed token, uint256 maxAge);
 
     constructor(address pythContract_) Ownable(msg.sender) {
         pyth = IPyth(pythContract_);
@@ -37,6 +40,11 @@ contract PriceOraclePyth is Ownable {
         require(token != address(0), "zero token");
         priceIds[token] = priceId;
         emit FeedSet(token, priceId);
+    }
+
+    function setStaleness(address token, uint256 maxAge) external onlyOwner {
+        stalenessMap[token] = maxAge;
+        emit StalenessSet(token, maxAge);
     }
 
     // ── Update prices on-chain (call with msg.value >= getUpdateFee) ──────────
@@ -57,7 +65,8 @@ contract PriceOraclePyth is Ownable {
         bytes32 priceId = priceIds[token];
         if (priceId == bytes32(0)) revert FeedNotFound(token);
 
-        PythStructs.Price memory p = pyth.getPriceNoOlderThan(priceId, MAX_STALENESS);
+        uint256 maxAge = stalenessMap[token] > 0 ? stalenessMap[token] : DEFAULT_STALENESS;
+        PythStructs.Price memory p = pyth.getPriceNoOlderThan(priceId, maxAge);
 
         if (p.price <= 0) revert NegativePrice(token);
 

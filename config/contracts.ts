@@ -24,8 +24,8 @@ export const ARC_TESTNET_CONTRACTS = {
   CREATE2_FACTORY:  "0x4e59b44847b379578588920cA78FbF26c0B4956C",
 
   // ── AgentLoan Protocol — Arc Testnet (Pyth real-time oracle) ──────────────────
-  LENDING_POOL:          "0xC0aC41e7ACF5a4c150CbF7236F7E0f8e95aD80ec" as `0x${string}`,
-  PRICE_ORACLE:          "0xb9f2F5326FcdcDB2D9a9DF3aF21A95279621f999" as `0x${string}`, // PriceOraclePyth
+  LENDING_POOL:          "0x4bdb1da10ac78061b922705acbad907ad9cb70e9" as `0x${string}`,
+  PRICE_ORACLE:          "0xf0fcba0e48e53870e451ff57c77cc517337b1c2d" as `0x${string}`, // PriceOraclePyth v2 — per-token staleness
   INTEREST_RATE_STRATEGY:"0x22B2A153F7694e49096ef91D627a80c5b6602Ffd" as `0x${string}`,
 
   // Mock testnet tokens — 24h on-chain cooldown per wallet
