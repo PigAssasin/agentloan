@@ -120,7 +120,8 @@ export async function POST(req: NextRequest) {
   const chatId = msg.chat.id.toString();
   const text   = msg.text.trim();
 
-  // Respond immediately — process async to avoid Telegram 5s timeout
-  processMessage(chatId, text).catch(console.error);
+  // Process synchronously — Vercel kills background tasks after response
+  // Simple commands complete in < 3s, well within Telegram's 5s timeout
+  await processMessage(chatId, text).catch(console.error);
   return Response.json({ ok: true });
 }
