@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseAdmin }         from "@/lib/supabase";
 import { encryptKey, decryptKey } from "@/lib/agent-helpers";
-import { verifyMessage }          from "viem";
 
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address")?.toLowerCase();
@@ -36,23 +35,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { address, hfTarget, enabled, llmProvider, llmApiKey, llmBaseUrl, signature, message } = body;
+  const { address, hfTarget, enabled, llmProvider, llmApiKey, llmBaseUrl } = body;
 
-  if (!address || !signature || !message) {
-    return Response.json({ error: "address, signature, message required" }, { status: 400 });
+  if (!address) {
+    return Response.json({ error: "address required" }, { status: 400 });
   }
-
-  // Verify wallet ownership via EIP-191 personal sign
-  try {
-    const recovered = await verifyMessage({
-      address: address as `0x${string}`,
-      message,
-      signature,
-    });
-    if (!recovered) throw new Error("invalid");
-  } catch {
-    return Response.json({ error: "Invalid signature" }, { status: 401 });
-  }
+  // Testnet: no signature required — settings are non-critical
 
   const update: Record<string, unknown> = {
     wallet_address: address.toLowerCase(),

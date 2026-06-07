@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSignMessage } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseUnits } from "viem";
 import { ARC_TESTNET_CONTRACTS } from "../../../config/contracts";
 import LendingPoolABI  from "@/lib/abi-lending-pool.json";
@@ -79,7 +79,6 @@ export function PersonalAgentPanel() {
   const { isSuccess: authOk,    isLoading: authConfirming }    = useWaitForTransactionReceipt({ hash: authTx });
   const approving = approveSending || approveConfirming;
   const authing   = authSending   || authConfirming;
-  const { signMessageAsync } = useSignMessage();
 
   const loadData = useCallback(async () => {
     if (!address) return;
@@ -128,17 +127,13 @@ export function PersonalAgentPanel() {
     if (!address) return;
     setSaving(true);
     try {
-      const message   = `AgentLoan: update settings for ${address.toLowerCase()}`;
-      const signature = await signMessageAsync({ message });
       await fetch("/api/personal-agent/settings", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
-          address: address.toLowerCase(),
+          address:  address.toLowerCase(),
           enabled,
           hfTarget: parseFloat(hfInput),
-          message,
-          signature,
         }),
       });
       await loadData();
