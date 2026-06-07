@@ -66,16 +66,19 @@ export function PersonalAgentPanel() {
   const [status,   setStatus]   = useState<AgentStatus | null>(null);
   const [settings, setSettings] = useState<AgentSettings | null>(null);
   const [actions,  setActions]  = useState<AgentAction[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
-  const [hfInput,  setHfInput]  = useState("1.30");
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
+  const [hfInput,    setHfInput]    = useState("1.30");
   const [showHistory, setShowHistory] = useState(false);
+  const [txError,    setTxError]    = useState<string | null>(null);
 
   // Approve + Authorize tx state
-  const { writeContract: writeApprove, data: approveTx, isPending: approving } = useWriteContract();
-  const { writeContract: writeAuth,    data: authTx,    isPending: authing }   = useWriteContract();
-  const { isSuccess: approveOk } = useWaitForTransactionReceipt({ hash: approveTx });
-  const { isSuccess: authOk }    = useWaitForTransactionReceipt({ hash: authTx });
+  const { writeContract: writeApprove, data: approveTx, isPending: approveSending } = useWriteContract();
+  const { writeContract: writeAuth,    data: authTx,    isPending: authSending }    = useWriteContract();
+  const { isSuccess: approveOk, isLoading: approveConfirming } = useWaitForTransactionReceipt({ hash: approveTx });
+  const { isSuccess: authOk,    isLoading: authConfirming }    = useWaitForTransactionReceipt({ hash: authTx });
+  const approving = approveSending || approveConfirming;
+  const authing   = authSending   || authConfirming;
   const { signMessageAsync } = useSignMessage();
 
   const loadData = useCallback(async () => {
@@ -140,21 +143,27 @@ export function PersonalAgentPanel() {
 
   function handleApprove() {
     if (!address) return;
+    setTxError(null);
     writeApprove({
       address:      ARC_TESTNET_CONTRACTS.X_USDC,
       abi:          MockERC20ABI as any,
       functionName: "approve",
       args:         [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, parseUnits("10000", 6)],
+    }, {
+      onError: (e) => setTxError(e.message?.slice(0, 120)),
     });
   }
 
   function handleAuthorize() {
     if (!address) return;
+    setTxError(null);
     writeAuth({
       address:      ARC_TESTNET_CONTRACTS.LENDING_POOL,
       abi:          LendingPoolABI as any,
       functionName: "authorizeAgent",
       args:         [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, true],
+    }, {
+      onError: (e) => setTxError(e.message?.slice(0, 120)),
     });
   }
 
@@ -182,6 +191,12 @@ export function PersonalAgentPanel() {
             Set up once — agent runs 24/7 to protect and grow your position.
           </div>
 
+          {txError && (
+            <div style={{ ...S, fontSize: 12, color: "#c00", background: "#fff0f0", border: "1px solid #fcc", padding: "8px 12px", marginBottom: 12, borderRadius: 2 }}>
+              {txError}
+            </div>
+          )}
+
           {/* Step 1: Approve */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
             <div style={{ ...MONO, fontSize: 13, color: step1Done ? "#008000" : "#000", minWidth: 24 }}>
@@ -193,7 +208,7 @@ export function PersonalAgentPanel() {
             {!step1Done && (
               <button onClick={handleApprove} disabled={approving}
                 style={{ border: "2px solid #000", background: approving ? "#eee" : "#000", color: approving ? "#999" : "#fff", padding: "6px 16px", ...S, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                {approving ? "APPROVING..." : "APPROVE →"}
+                {approveSending ? "SIGN IN WALLET..." : approveConfirming ? "CONFIRMING..." : "APPROVE →"}
               </button>
             )}
           </div>
@@ -209,7 +224,7 @@ export function PersonalAgentPanel() {
             {!step2Done && (
               <button onClick={handleAuthorize} disabled={authing || !step1Done}
                 style={{ border: "2px solid #000", background: (authing || !step1Done) ? "#eee" : "#000", color: (authing || !step1Done) ? "#999" : "#fff", padding: "6px 16px", ...S, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                {authing ? "AUTHORIZING..." : "AUTHORIZE →"}
+                {authSending ? "SIGN IN WALLET..." : authConfirming ? "CONFIRMING..." : "AUTHORIZE →"}
               </button>
             )}
           </div>
