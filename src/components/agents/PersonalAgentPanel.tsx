@@ -102,7 +102,12 @@ export function PersonalAgentPanel() {
     return () => clearInterval(id);
   }, [isConnected, address, loadData]);
 
-  useEffect(() => { if (approveOk || authOk) loadData(); }, [approveOk, authOk, loadData]);
+  // Reload after tx confirmed — small delay to let RPC catch up
+  useEffect(() => {
+    if (approveOk || authOk) {
+      setTimeout(() => loadData(), 1500);
+    }
+  }, [approveOk, authOk, loadData]);
 
   if (!isConnected) return null;
   if (loading) return (
@@ -222,8 +227,8 @@ export function PersonalAgentPanel() {
               Authorize agent in LendingPool
             </div>
             {!step2Done && (
-              <button onClick={handleAuthorize} disabled={authing || !step1Done}
-                style={{ border: "2px solid #000", background: (authing || !step1Done) ? "#eee" : "#000", color: (authing || !step1Done) ? "#999" : "#fff", padding: "6px 16px", ...S, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={handleAuthorize} disabled={authing}
+                style={{ border: "2px solid #000", background: authing ? "#eee" : "#000", color: authing ? "#999" : "#fff", padding: "6px 16px", ...S, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                 {authSending ? "SIGN IN WALLET..." : authConfirming ? "CONFIRMING..." : "AUTHORIZE →"}
               </button>
             )}
