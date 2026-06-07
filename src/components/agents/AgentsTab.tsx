@@ -1,5 +1,6 @@
-import { BotStatusPanel }   from "./BotStatusPanel";
-import { CoordinatorPanel } from "./CoordinatorPanel";
+import { BotStatusPanel }      from "./BotStatusPanel";
+import { CoordinatorPanel }    from "./CoordinatorPanel";
+import { PersonalAgentPanel }  from "./PersonalAgentPanel";
 
 export function AgentsTab() {
   return (
@@ -8,6 +9,7 @@ export function AgentsTab() {
         Autonomous agents running 24/7 on Arc Testnet.
       </div>
 
+      <PersonalAgentPanel />
       <CoordinatorPanel />
       <BotStatusPanel />
     </div>
