@@ -4,14 +4,15 @@ export default function AgentsPage() {
   return (
     <DocPage
       title="DeFi Agents"
-      description="AgentLoan runs five autonomous agents — an AI coordinator, a liquidation bot, a signal marketplace, and two browser agents — working together 24 hours a day."
+      description="AgentLoan runs three autonomous agents — an AI coordinator, a liquidation bot, and a signal marketplace — working together 24 hours a day on Arc Testnet."
       prev={{ label: "Liquidations", href: "/docs/liquidations" }}
       next={{ label: "Smart Contracts", href: "/docs/contracts" }}
     >
       <InfoBox title="What are DeFi Agents?">
-        AgentLoan's agent layer has two tiers. <strong>Server agents</strong> (Coordinator, Liquidation Bot, Signal Agent)
-        run 24/7 on dedicated infrastructure. <strong>Browser agents</strong> (Guardian, Yield Optimizer) run in your
-        browser and alert you when action is needed.
+        AgentLoan's agent layer runs 24/7 on dedicated infrastructure.
+        The <strong>Protocol Manager</strong> (Coordinator + Oracle Keeper) keeps the system healthy.
+        The <strong>Liquidation Bot</strong> executes liquidations and earns rewards.
+        The <strong>Signal Agent</strong> sells early warnings via the x402 payment protocol.
       </InfoBox>
 
       {/* ── Coordinator Agent ─────────────────────────────────────── */}
@@ -88,7 +89,7 @@ export default function AgentsPage() {
           ["Reaction time", "~15 seconds (oracle staleness threshold)"],
           ["Collateral bonus", "5% of debt value"],
           ["Max repay per tx", "50% of borrower's debt (close factor)"],
-          ["Bot wallet (Circle SCA)", "0x69efc5abdc9f9f1e90f59261c0fdf601e53291af"],
+          ["Bot wallet (Circle SCA)", "0x9E47c5EE0b1174a5F4450553CE45Fdcf6bCd036a"],
           ["Arc ERC-8004 ID", "#30907"],
           ["Infrastructure", "PM2 on VPS — auto-restarts on crash"],
         ]}
@@ -138,64 +139,6 @@ export default function AgentsPage() {
         See <a href="https://github.com/PigAssasin/agentloan/tree/main/signal-agent" target="_blank" rel="noopener noreferrer" style={{ color: "#000", fontWeight: 600 }}>signal-agent/README.md</a> for setup instructions.
       </InfoBox>
 
-      {/* ── Guardian Agent ─────────────────────────────────────── */}
-      <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 28, marginBottom: 8, marginTop: 40 }}>
-        04 — GUARDIAN AGENT
-      </h2>
-      <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#444", lineHeight: 1.8, marginBottom: 28 }}>
-        A browser-based agent that monitors your personal Health Factor and alerts you
-        before you get liquidated. Set your own threshold — when HF drops below it,
-        a banner appears with the exact amount you need to repay to restore safety.
-      </p>
-
-      <div style={{ border: "3px solid #000", padding: "20px 24px", marginBottom: 32, background: "#f9f9f9", fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 2 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>EXAMPLE</div>
-        <div>You set threshold: 1.5</div>
-        <div>BTC price drops → your HF falls to 1.28</div>
-        <div style={{ color: "#ff3b30" }}>⚠ ALERT: HF below your threshold</div>
-        <div>Suggested repay: $3,200 xUSDC → restores HF to 1.7</div>
-      </div>
-
-      <Step n={1} title="Go to Dashboard → AGENTS tab">
-        Connect your wallet and open the AGENTS tab in the dashboard.
-      </Step>
-      <Step n={2} title="Set your HF threshold">
-        Enter a Health Factor threshold (e.g. 1.5). The alert fires when your HF drops below this.
-      </Step>
-      <Step n={3} title="Save — Guardian is now watching">
-        Threshold is saved locally. The Guardian checks your HF on every page load and every ~3 seconds.
-      </Step>
-      <Step n={4} title="When an alert fires — repay immediately">
-        The alert shows the exact xUSDC amount needed. Click Repay in the POSITIONS tab.
-      </Step>
-
-      <InfoBox title="How is the repay amount calculated?">
-        Target HF = your threshold + 0.2 buffer.<br />
-        Max safe debt = weighted collateral ÷ target HF.<br />
-        Suggested repay = current debt − max safe debt.
-      </InfoBox>
-
-      {/* ── Yield Optimizer ─────────────────────────────────────── */}
-      <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 28, marginBottom: 8, marginTop: 40 }}>
-        05 — YIELD OPTIMIZER
-      </h2>
-      <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#444", lineHeight: 1.8, marginBottom: 28 }}>
-        Monitors the xUSDC supply APY and notifies you when the rate exceeds your target.
-        When APY crosses your threshold, a deposit recommendation appears.
-      </p>
-
-      <div style={{ border: "3px solid #000", padding: "20px 24px", marginBottom: 32, background: "#f9f9f9", fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 2 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>EXAMPLE</div>
-        <div>You set threshold: 5%</div>
-        <div>Protocol utilization rises → APY reaches 6.2%</div>
-        <div style={{ color: "#34c759" }}>✓ OPPORTUNITY: APY exceeds your threshold</div>
-        <div>Deposit xUSDC now to earn 6.2% APY</div>
-      </div>
-
-      <InfoBox>
-        APY is variable — it changes with pool utilization. The Yield Optimizer updates every 4 seconds.
-      </InfoBox>
-
       {/* ── Comparison ─────────────────────────────────────────── */}
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 28, marginBottom: 16, marginTop: 40 }}>
         AGENT COMPARISON
@@ -207,8 +150,6 @@ export default function AgentsPage() {
           ["Coordinator", "Protocol efficiency", "VPS (every 30s)", "Positions HF < 1.1"],
           ["Liquidation Bot", "Protocol + bot operator", "VPS (every block)", "HF < 1.0"],
           ["Signal Agent", "Signal Agent operator", "VPS (every 5s)", "Positions HF < 1.1"],
-          ["Guardian Agent", "You (borrower)", "Your browser", "Your HF < threshold"],
-          ["Yield Optimizer", "You (lender)", "Your browser", "APY > threshold"],
         ]}
       />
 

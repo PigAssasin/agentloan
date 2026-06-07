@@ -20,8 +20,9 @@ export default function ContractsPage() {
       <Table
         headers={["Contract", "Address"]}
         rows={[
-          ["LendingPool", "0x4bdb1da10ac78061b922705acbad907ad9cb70e9"],
-          ["PriceOraclePyth v2", "0xf0fcba0e48e53870e451ff57c77cc517337b1c2d"],
+          ["LendingPool v3", "0xA5F8E24a5a97e9cA763D0FB4777786B684Aceb9B"],
+          ["PriceOraclePyth v3", "0x440B0f69AADd464d88ED205191ed1a45374bCCF6"],
+          ["AgentExecutor", "0x81E1d5F98e2804be55190610Dcb6DbB71E9CABdA"],
           ["InterestRateStrategy", "0x22B2A153F7694e49096ef91D627a80c5b6602Ffd"],
           ["xUSDC (testnet)", "0xFa090bd1A524D861542888B6c5e7965dde1F4f35"],
           ["xEURC (testnet)", "0x11aC6A7f4c3235e4edda971838640bE9e55aC222"],
@@ -49,7 +50,7 @@ export default function ContractsPage() {
       <div style={{ border: "3px solid #000", padding: "16px 20px", marginBottom: 32, fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 2, background: "#f9f9f9" }}>
         <div><strong>Pyth on Arc Testnet:</strong> 0x2880aB155794e7179c9eE2e38200202908C17B43</div>
         <div><strong>Hermes API:</strong> https://hermes.pyth.network</div>
-        <div><strong>Staleness threshold:</strong> 15 seconds (pushed by bot) / 3600 seconds (max before revert)</div>
+        <div><strong>Staleness threshold:</strong> 3600s (BTC/USDC) · 2,592,000s / 30 days (EUR — Pyth testnet updates slowly)</div>
       </div>
 
       <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 24, marginBottom: 16, marginTop: 40 }}>ARC ERC-8004 AGENT REGISTRY</h2>
@@ -80,6 +81,9 @@ export default function ContractsPage() {
         <div style={{ paddingLeft: 24 }}>├── libraries/ReserveLogic.sol (scaled balance indexes, overflow guard)</div>
         <div style={{ paddingLeft: 24 }}>├── libraries/ValidationLogic.sol (health factor math)</div>
         <div style={{ paddingLeft: 24 }}>└── mocks/MockERC20.sol × 3 (24h on-chain faucet cooldown)</div>
+        <div style={{ marginTop: 8 }}>AgentExecutor.sol</div>
+        <div style={{ paddingLeft: 24 }}>├── deployToYield(user, amount) → pull xUSDC from user → supply to pool</div>
+        <div style={{ paddingLeft: 24 }}>└── emergencyProtect(user, amount) → withdrawFor + repayFor atomic (1 tx)</div>
         <div style={{ marginTop: 8 }}>Liquidation Bot (agents/)</div>
         <div style={{ paddingLeft: 24 }}>├── pool-reader.ts → getAllBorrowers (incremental scan) + Multicall3 HF reads</div>
         <div style={{ paddingLeft: 24 }}>├── oracle-updater.ts → Pyth Hermes API → updatePrices() every 15s</div>
@@ -100,6 +104,10 @@ export default function ContractsPage() {
           ["getUserAccountData(user)", "Get HF, collateral, debt, available borrows", "read"],
           ["getUserSupplyBalance(token, user)", "Real balance including accrued interest", "read"],
           ["getUserBorrowBalance(token, user)", "Real debt including accrued interest", "read"],
+          ["authorizeAgent(agent, bool)", "Allow an agent to act on your behalf", "1 tx"],
+          ["depositFor(user, token, amount)", "Agent supplies on behalf of user", "approve + depositFor"],
+          ["withdrawFor(user, token, amount, recipient)", "Agent withdraws from user's supply", "1 tx (requires auth)"],
+          ["repayFor(borrower, token, amount)", "Anyone repays debt for a borrower", "approve + repayFor"],
         ]}
       />
 
