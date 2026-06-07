@@ -399,5 +399,5 @@ publicClient.watchBlocks({
       isRunning = false;
     }
   },
-  onError: (e) => console.error("Block watch error:", e.message),
+  onError: (e: Error) => console.error("Block watch error:", e.message),
 });
