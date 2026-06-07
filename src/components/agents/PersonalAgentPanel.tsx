@@ -70,7 +70,12 @@ export function PersonalAgentPanel() {
   const [saving,     setSaving]     = useState(false);
   const [hfInput,    setHfInput]    = useState("1.30");
   const [showHistory, setShowHistory] = useState(false);
+  const [showLLM,    setShowLLM]    = useState(false);
   const [txError,    setTxError]    = useState<string | null>(null);
+  const [llmProvider, setLlmProvider] = useState("gemini");
+  const [llmKey,     setLlmKey]     = useState("");
+  const [llmSaving,  setLlmSaving]  = useState(false);
+  const [llmSaved,   setLlmSaved]   = useState(false);
 
   // Approve + Authorize tx state
   const { writeContract: writeApprove, data: approveTx, isPending: approveSending } = useWriteContract();
@@ -314,6 +319,54 @@ export function PersonalAgentPanel() {
               <span>
                 Not linked — send <code style={{ background: "#f0f0f0", padding: "1px 6px" }}>/start {address?.toLowerCase()}</code> to @AgentLoanBot
               </span>
+            )}
+          </div>
+
+          {/* LLM Provider — collapsible */}
+          <div style={{ marginBottom: 16 }}>
+            <button onClick={() => setShowLLM(v => !v)}
+              style={{ background: "none", border: "none", ...S, fontSize: 12, color: "#666", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+              {showLLM ? "▼" : "▶"} AI Reasoning {settings?.hasLlmKey ? "(custom key ✓)" : "(protocol default)"}
+            </button>
+            {showLLM && (
+              <div style={{ marginTop: 10, padding: "12px 16px", border: "2px solid #ddd", background: "#fafafa" }}>
+                <div style={{ ...S, fontSize: 12, color: "#444", marginBottom: 10 }}>
+                  Default: Protocol Gemini key (shared). Add your own for dedicated capacity.
+                </div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  {["gemini","openai","deepseek"].map(p => (
+                    <button key={p} onClick={() => setLlmProvider(p)}
+                      style={{ border: `2px solid ${llmProvider===p?"#000":"#ddd"}`, background: llmProvider===p?"#000":"#fff", color: llmProvider===p?"#fff":"#444", padding: "4px 12px", ...S, fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" }}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="password" placeholder="Paste API key..."
+                    value={llmKey} onChange={e => setLlmKey(e.target.value)}
+                    style={{ flex: 1, border: "2px solid #000", padding: "6px 10px", ...MONO, fontSize: 12, background: "#fff" }}
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!address || !llmKey.trim()) return;
+                      setLlmSaving(true);
+                      await fetch("/api/personal-agent/settings", {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ address: address.toLowerCase(), llmProvider, llmApiKey: llmKey.trim() }),
+                      });
+                      setLlmSaved(true); setLlmKey(""); setTimeout(() => setLlmSaved(false), 3000);
+                      setLlmSaving(false); loadData();
+                    }}
+                    disabled={!llmKey.trim() || llmSaving}
+                    style={{ border: "2px solid #000", background: (!llmKey.trim()||llmSaving)?"#eee":"#000", color: (!llmKey.trim()||llmSaving)?"#999":"#fff", padding: "6px 14px", ...S, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    {llmSaving ? "..." : llmSaved ? "SAVED ✓" : "SAVE"}
+                  </button>
+                </div>
+                {settings?.hasLlmKey && (
+                  <div style={{ ...S, fontSize: 11, color: "#008000", marginTop: 6 }}>Custom key active — paste new key to replace</div>
+                )}
+              </div>
             )}
           </div>
 
