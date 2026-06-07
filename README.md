@@ -106,43 +106,34 @@ See [signal-agent/README.md](signal-agent/README.md) for the full API reference.
 
 ---
 
-### Option C — Liquidate via UI (no code needed)
+### Option C — Personal Agent (set and forget)
 
-Go to [agentloan.vercel.app/app](https://agentloan.vercel.app/app) → **JOBS** tab → click **LIQUIDATE** on any available position. Requires xUSDC in your wallet.
+Go to [agentloan.vercel.app/app](https://agentloan.vercel.app/app) → **AGENTS** tab → approve xUSDC → authorize → activate. Agent monitors your HF 24/7, auto-repays when needed, and deploys idle xUSDC to earn yield.
 
 ---
 
 ## Agent Architecture
 
 ```
+Personal Agent (every block, ERC-8004 #67459)
+  └─ monitors your HF 24/7 — acts when HF < your target
+  └─ Gemini AI with rolling memory context (5-min cooldown)
+  └─ repayFromWallet(): pulls xUSDC from wallet → repays debt
+  └─ deployToYield(): idle xUSDC → pool → earns APY
+  └─ Telegram notifications after every action
+
 Coordinator Agent (every 30s, ERC-8004 #34625)
-  └─ scoring function ranks ALL positions instantly ($0, scales to 1000+)
-  └─ calls Gemini AI only on real events:
-       • BTC/collateral price change > 1.5%
-       • New position crosses critical threshold (HF < 1.05 or 1.02)
-       • 5-minute minimum between AI calls
-  └─ AI reasons about top 10 most urgent — scoring handles the rest
-  └─ merges AI priority (top 10) + scoring order (everyone else)
-  └─ learns from outcomes via persistent memory
+  └─ scoring function ranks ALL liquidatable positions ($0)
+  └─ Gemini AI only on real events (price change >1.5% or new critical HF)
+  └─ 5-minute minimum between AI calls
 
 Signal Agent (every 5s, ERC-8004 #31772)
   └─ scans all positions for HF < 1.1
   └─ sells early warnings via x402: 1 xUSDC = 1,000 signals (24h)
 
 Liquidation Bot (every block, ~0.48s, ERC-8004 #30907)
-  └─ reads Coordinator priority (AI + scoring combined)
-  └─ buys signals from Signal Agent (15-30s head start)
-  └─ HF < 1.0 → approve → liquidate → earn 5% bonus
-  └─ Circle SCA wallet: gasless, no private key on server
-  └─ ERC-8183 jobs: signals open opportunity to community bots
-
-Guardian Agent (browser, real-time)
-  └─ alerts you when your HF drops below your threshold
-  └─ calculates exact repay amount needed to restore safety
-
-JOBS tab (browser)
-  └─ shows all liquidatable + at-risk positions
-  └─ anyone can click to liquidate and earn the bonus
+  └─ reads Coordinator priority
+  └─ HF < 1.0 → liquidate → earn 5% collateral bonus
 ```
 
 ---
@@ -153,7 +144,7 @@ JOBS tab (browser)
 |---|---|
 | LendingPool v3 | [`0xA5F8E24a5a97e9cA763D0FB4777786B684Aceb9B`](https://testnet.arcscan.app/address/0xA5F8E24a5a97e9cA763D0FB4777786B684Aceb9B) |
 | PriceOraclePyth v3 | [`0x440B0f69AADd464d88ED205191ed1a45374bCCF6`](https://testnet.arcscan.app/address/0x440B0f69AADd464d88ED205191ed1a45374bCCF6) |
-| AgentExecutor | [`0x81E1d5F98e2804be55190610Dcb6DbB71E9CABdA`](https://testnet.arcscan.app/address/0x81E1d5F98e2804be55190610Dcb6DbB71E9CABdA) |
+| AgentExecutor v2 | [`0x1e009Ea4e463086bd70fe8F8B0E7FFfa64bD25c6`](https://testnet.arcscan.app/address/0x1e009Ea4e463086bd70fe8F8B0E7FFfa64bD25c6) |
 | InterestRateStrategy | [`0x22B2A153F7694e49096ef91D627a80c5b6602Ffd`](https://testnet.arcscan.app/address/0x22B2A153F7694e49096ef91D627a80c5b6602Ffd) |
 | xUSDC (mock) | [`0xFa090bd1A524D861542888B6c5e7965dde1F4f35`](https://testnet.arcscan.app/address/0xFa090bd1A524D861542888B6c5e7965dde1F4f35) |
 | xEURC (mock) | [`0x11aC6A7f4c3235e4edda971838640bE9e55aC222`](https://testnet.arcscan.app/address/0x11aC6A7f4c3235e4edda971838640bE9e55aC222) |
@@ -161,6 +152,7 @@ JOBS tab (browser)
 
 | Agent | ERC-8004 ID | Address |
 |---|---|---|
+| Personal Agent | #67459 | `0x93A7daa58B2dDf25387cE072a95Bea96dc5f93FA` |
 | Coordinator Agent | #34625 | `0x4dcE343E9c35112AAF9Ddce566689C3f36C73482` |
 | Liquidation Bot | #30907 | `0x9E47c5EE0b1174a5F4450553CE45Fdcf6bCd036a` |
 | Signal Agent | #31772 | `0x555cc39B822392E45A0B69776d6AeEadfcC5af3D` |
