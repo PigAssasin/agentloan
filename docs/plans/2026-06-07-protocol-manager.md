@@ -1,271 +1,303 @@
-# Protocol Manager — Build Plan
-> Created: 2026-06-07 | Based on audit findings
-> Strategy: Replace coordinator-agent with Protocol Manager (same process count, no OOM)
+# Protocol Manager — Build Plan (v2, reviewed)
+> Created: 2026-06-07 | Reviewed twice — all critical issues fixed
+> Strategy: Replace coordinator-agent with Protocol Manager (same 4 processes, no OOM)
 
 ---
 
-## Architecture decision
+## Architecture
 
 ```
 BEFORE:
   arcbank-bot       = liquidation + oracle push (conflict risk)
-  coordinator-agent = coordinator AI
+  coordinator-agent = coordinator AI only
 
 AFTER:
-  arcbank-bot        = liquidation ONLY (oracle push removed)
-  protocol-manager   = oracle keeper + coordinator + health monitor
-  (same 4 total processes — no RAM issue)
+  arcbank-bot       = liquidation ONLY (oracle removed)
+  protocol-manager  = oracle keeper + coordinator + health monitor
+  (same 4 total — no RAM issue, no nonce conflict)
 ```
 
 ---
 
-## Issues fixed by this design
+## Issues fixed from 2 review rounds (10 critical items)
 
-| Issue | How fixed |
-|---|---|
-| Nonce conflict | Only protocol-manager pushes oracle, bot never does |
-| RAM (5th process OOM) | Replace coordinator-agent, same count |
-| coordinator.json race | Only protocol-manager writes it |
-| Coordinator duplication | Existing coordinator-agent.ts migrated in, not duplicated |
+| # | Issue | Fix |
+|---|---|---|
+| 1 | `readLastBlock` not exported | Export it from pool-reader.ts |
+| 2 | `isOracleStale()` takes 0 args, plan passed 2 | Use correct 0-arg signature |
+| 3 | Phase 1 code snippet pseudocode, missed DRY_RUN guard | Show exact lines 224-233 |
+| 4 | `RAY` not defined in agents | Define `const RAY = 10n ** 27n` |
+| 5 | `PYTH_ADDRESS` not in config | Add to config/contracts.ts (0x2880aB...) |
+| 6 | `getPriceUnsafe` ABI unverified for Arc | Use IPyth.sol interface already in project |
+| 7 | Duplicate `import * as path` in coordinator-agent | Dedup on merge |
+| 8 | Oracle gap window before bot restart | Verify `[oracle] pushed` in logs before Step 3 |
+| 9 | PM2 `cron_restart` + `autorestart: false` unreliable | Use OS crontab instead |
+| 10 | signal-agent not in ecosystem.config.js | Note: managed separately, not in ecosystem |
 
 ---
 
-## PHASE 0 — Supabase: add protocol_metrics table (10 min)
+## PHASE 0A — Add PYTH_ADDRESS to config (5 min)
+
+**File:** `config/contracts.ts` — add to ARC_TESTNET_CONTRACTS:
+
+```typescript
+// Pyth Network on Arc Testnet
+PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43" as `0x${string}`,
+```
+
+Source: `contracts/PriceOraclePyth.sol` line 15 (verified from deployed contract).
+
+---
+
+## PHASE 0B — Export readLastBlock from pool-reader.ts (2 min)
+
+**File:** `agents/lib/pool-reader.ts` line 48 — add `export`:
+
+```typescript
+// Before:
+function readLastBlock(): bigint {
+
+// After:
+export function readLastBlock(): bigint {
+```
+
+---
+
+## PHASE 0C — Supabase: add protocol_metrics table (10 min)
 
 Run in Supabase SQL Editor:
 
 ```sql
 CREATE TABLE protocol_metrics (
-  id              BIGSERIAL PRIMARY KEY,
-  recorded_at     TIMESTAMPTZ DEFAULT now(),
-
-  -- Pool state (per token)
-  usdc_utilization   NUMERIC,   -- totalScaledBorrow * borrowIndex / RAY / (totalScaledSupply * liquidityIndex / RAY)
+  id                 BIGSERIAL PRIMARY KEY,
+  recorded_at        TIMESTAMPTZ DEFAULT now(),
+  usdc_utilization   NUMERIC,
   eurc_utilization   NUMERIC,
   btc_utilization    NUMERIC,
-
-  -- Oracle freshness (from Pyth contract, NOT lastUpdateTimestamp)
-  btc_pyth_age_sec   INTEGER,   -- seconds since last Pyth publishTime
+  btc_pyth_age_sec   INTEGER,
   eur_pyth_age_sec   INTEGER,
   usdc_pyth_age_sec  INTEGER,
-
-  -- Bot health
-  bot_last_block     BIGINT,    -- from agents/state/last-block.txt
-  bot_alive          BOOLEAN,   -- currentBlock - bot_last_block < 200
-
-  -- Risk
-  total_bad_debt_usd NUMERIC,   -- sum of positions where HF < 1.0
+  bot_last_block     BIGINT,
+  bot_alive          BOOLEAN,
+  total_bad_debt_usd NUMERIC,
   liquidatable_count INTEGER,
-
-  -- Notes from LLM
-  health_summary     TEXT,      -- LLM daily/anomaly assessment
-  risk_level         TEXT       -- LOW / MEDIUM / HIGH
+  health_summary     TEXT,
+  risk_level         TEXT
 );
 
 CREATE INDEX ON protocol_metrics(recorded_at DESC);
 
--- Keep 30 days of hourly data
 SELECT cron.schedule('cleanup-metrics','0 4 * * *',$$
   DELETE FROM protocol_metrics WHERE recorded_at < NOW() - INTERVAL '30 days';
 $$);
 ```
 
-**CHECKPOINT 0:** Table created, cron scheduled.
+**CHECKPOINT 0:** Config updated, readLastBlock exported, metrics table created.
 
 ---
 
 ## PHASE 1 — Remove oracle push from liquidation-bot.ts (30 min)
 
-**File:** `agents/liquidation-bot.ts`
+**File:** `agents/liquidation-bot.ts` lines 224–233
 
-Find and remove the oracle push block. The bot's `isOracleStale()` check can stay as a guard, but it should LOG a warning instead of pushing:
+**Exact replacement** (keep the comment, replace only the push logic):
 
 ```typescript
-// BEFORE (remove this):
-if (isOracleStale()) {
-  await safeUpdateOracle(wallet);
-}
-
-// AFTER (replace with):
-if (isOracleStale()) {
-  console.warn("  [bot] Oracle stale — Protocol Manager should handle this");
-  // Do NOT push from bot — Protocol Manager is the oracle keeper
+// ── Step 2: Update oracle if stale ─────────────────────────────────
+// Oracle update is now handled by Protocol Manager exclusively.
+// Bot logs a warning if oracle is stale but does NOT push.
+const stale = await isOracleStale();
+if (stale) {
+  console.warn(`  [block ${block.number}] oracle stale — Protocol Manager should push`);
+  // DO NOT call safeUpdateOracle here — Protocol Manager is the sole oracle keeper
 }
 ```
 
-**Why:** Prevents nonce conflict. Protocol Manager becomes the sole oracle pusher.
+Also remove `safeUpdateOracle` from imports if it becomes unused.
 
-**CHECKPOINT 1:** Build passes, existing tests pass, bot still liquidates.
+Run existing tests after this change:
+```bash
+TS_NODE_PROJECT=tsconfig.hardhat.json npx hardhat test
+```
+
+**CHECKPOINT 1:** All 80 tests pass. Bot no longer pushes oracle.
 
 ---
 
 ## PHASE 2 — Write `agents/protocol-manager.ts` (2h)
 
-Three loops in one process:
-
-### Loop A — Oracle Keeper (every 15s)
+### Imports and constants
 
 ```typescript
-// Uses same oracle-updater.ts as before
-// But NOW it's the only caller — no nonce conflict
+import * as dotenv from "dotenv";
+import * as path   from "path";
+import * as fs     from "fs";
+dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
+
+import { createPublicClient, createWalletClient, http, parseAbi, keccak256, toHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { callLLM }            from "./lib/gemini-client";
+import { updateOraclePrices } from "./lib/oracle-updater";
+import { isOracleStale, getPositionsBatch, filterLiquidatable, readLastBlock } from "./lib/pool-reader";
+import { notify }             from "./lib/notifier";
+import { ARC_TESTNET_CONTRACTS, AGENT_IDS } from "../config/contracts";
+
+// Coordinator imports (migrated from coordinator-agent.ts)
+import { loadMemory, saveMemory, updateOutcome } from "./lib/coordinator-memory";
+
+const RAY = 10n ** 27n;  // Aave-style ray math constant
+
+const PYTH_ADDRESS  = ARC_TESTNET_CONTRACTS.PYTH;
+const PRICE_IDS = {
+  BTC:  "0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+  EUR:  "0xa995d00bb36a63cef7fd2c287dc105fc8f3d93779f062f09551b0af3e81ec30b",
+  USDC: "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a",
+};
+```
+
+### Oracle Keeper (Loop A, every 15s)
+
+```typescript
+const deployerAccount = privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`);
+const deployerWallet  = createWalletClient({ account: deployerAccount, chain: arcChain, transport: http() });
 
 async function runOracleKeeper() {
   try {
-    if (await isOracleStale(publicClient, BOT_CONFIG.ORACLE_STALENESS_THRESHOLD)) {
+    const stale = await isOracleStale(); // 0-arg, uses BOT_CONFIG internally
+    if (stale) {
       await updateOraclePrices(deployerWallet);
-      console.log(`  [oracle] pushed at block ${await publicClient.getBlockNumber()}`);
+      console.log(`  [oracle] pushed at ${new Date().toISOString()}`);
     }
-    // Write heartbeat
     fs.writeFileSync(
-      "agents/state/pm-heartbeat.json",
-      JSON.stringify({ ts: Date.now(), block: currentBlock }),
+      path.resolve(__dirname, "../agents/state/pm-heartbeat.json"),
+      JSON.stringify({ ts: Date.now(), alive: true }),
     );
   } catch (e: any) {
-    console.error("  [oracle] PUSH FAILED:", e.message?.slice(0, 80));
-    await notify(`⚠️ Oracle push failed: ${e.message?.slice(0, 100)}`);
+    console.error("  [oracle] FAILED:", e.message?.slice(0, 80));
+    await notify(`⚠️ Protocol Manager oracle push failed: ${e.message?.slice(0, 80)}`);
   }
 }
 setInterval(runOracleKeeper, 15_000);
 ```
 
-### Loop B — Coordinator AI (every 30s)
+### Coordinator AI (Loop B, every 30s)
 
-Migrate from `coordinator-agent.ts` directly:
-- Same scoring function
-- Same LLM trigger logic (price >1.5%, new HF < 1.05)
-- Same coordinator.json write
-- Same memory system
+Migrate `coordinator-agent.ts` logic directly. Key deduplication:
+- Remove duplicate `import * as path from "path"` (appears twice in coordinator-agent.ts)
+- Keep all other logic identical
+- Still reads/writes `agents/state/coordinator.json`
 
-```typescript
-// Identical to coordinator-agent.ts main loop
-// Just moved into protocol-manager.ts
-setInterval(runCoordinator, 30_000);
-```
-
-### Loop C — Health Monitor (every 60s)
+### Health Monitor (Loop C, every 60s)
 
 ```typescript
-async function runHealthMonitor() {
-  const metrics = await collectMetrics();
-  await storeMetrics(metrics);
+// Pyth ABI — use IPyth interface already imported via PriceOraclePyth.sol dependency
+// getPriceUnsafe returns PythStructs.Price: (int64 price, uint64 conf, int32 expo, uint publishTime)
+const PYTH_ABI = parseAbi([
+  "function getPriceUnsafe(bytes32 id) external view returns (int64 price, uint64 conf, int32 expo, uint publishTime)",
+]);
 
-  // Rule-based alerts (immediate, no LLM)
-  if (metrics.btc_pyth_age_sec > 120)
-    await notify(`⚠️ BTC oracle stale ${metrics.btc_pyth_age_sec}s`);
-  if (metrics.usdc_utilization > 0.90)
-    await notify(`⚠️ xUSDC utilization ${(metrics.usdc_utilization*100).toFixed(1)}%`);
-  if (!metrics.bot_alive)
-    await notify(`🚨 Liquidation bot appears offline`);
+async function getOracleAgeSeconds(priceId: string): Promise<number> {
+  try {
+    const result = await publicClient.readContract({
+      address:      PYTH_ADDRESS,
+      abi:          PYTH_ABI,
+      functionName: "getPriceUnsafe",
+      args:         [priceId as `0x${string}`],
+    }) as { price: bigint; conf: bigint; expo: bigint; publishTime: bigint };
 
-  // LLM anomaly detection (every 5 min, only if anomaly)
-  const hasAnomaly = detectAnomaly(metrics, recentMetrics);
-  if (hasAnomaly && shouldCallLLM()) {
-    const analysis = await analyzeWithLLM(metrics, recentMetrics);
-    if (analysis.risk_level !== "LOW") {
-      await notify(`📊 Health Alert\n${analysis.summary}`);
-    }
-    await updateMetricSummary(analysis);
-    updateLastLLMCall();
+    const age = Math.floor(Date.now() / 1000) - Number(result.publishTime);
+    return Math.max(0, age);
+  } catch {
+    return 9999; // treat as very stale if call fails
   }
 }
-setInterval(runHealthMonitor, 60_000);
-```
 
-### collectMetrics() — correct implementation
-
-```typescript
-async function collectMetrics(): Promise<Metrics> {
-  // Utilization: must multiply scaled values by index
-  const [usdcReserve, eurcReserve, btcReserve] = await Promise.all([
-    pool.getReserveData(X_USDC),
-    pool.getReserveData(X_EURC),
-    pool.getReserveData(X_CLR_BTC),
+async function collectMetrics() {
+  const POOL_ABI = parseAbi([
+    "function getReserveData(address) external view returns (uint128,uint128,uint128,uint128,uint256,uint256,uint256,uint256,uint8,bool,uint16,uint16,uint16)",
   ]);
 
-  const utilization = (r: ReserveData) => {
-    const supply = (r.totalScaledSupply * r.liquidityIndex) / RAY;
-    const borrow = (r.totalScaledBorrow * r.borrowIndex) / RAY;
+  const [usdcR, eurcR, btcR] = await Promise.all([
+    publicClient.readContract({ address: ARC_TESTNET_CONTRACTS.LENDING_POOL, abi: POOL_ABI, functionName: "getReserveData", args: [ARC_TESTNET_CONTRACTS.X_USDC] }),
+    publicClient.readContract({ address: ARC_TESTNET_CONTRACTS.LENDING_POOL, abi: POOL_ABI, functionName: "getReserveData", args: [ARC_TESTNET_CONTRACTS.X_EURC] }),
+    publicClient.readContract({ address: ARC_TESTNET_CONTRACTS.LENDING_POOL, abi: POOL_ABI, functionName: "getReserveData", args: [ARC_TESTNET_CONTRACTS.X_CLR_BTC] }),
+  ]) as unknown as [bigint[], bigint[], bigint[]];
+
+  // ReserveData field positions: [0]=liquidityIndex, [1]=borrowIndex, [4]=totalScaledSupply, [5]=totalScaledBorrow
+  const utilization = (r: bigint[]) => {
+    const supply = (r[4] * r[0]) / RAY;
+    const borrow = (r[5] * r[1]) / RAY;
     return supply > 0n ? Number(borrow) / Number(supply) : 0;
   };
 
-  // Oracle age: read from PYTH CONTRACT, not lastUpdateTimestamp
-  const PYTH_ABI = parseAbi(["function getPriceUnsafe(bytes32) view returns (int64,uint64,int32,uint)"]);
-  const [btcAge, eurAge, usdcAge] = await Promise.all(
-    PRICE_IDS.map(async (id) => {
-      const [, , , publishTime] = await publicClient.readContract({
-        address: PYTH_ADDRESS, abi: PYTH_ABI,
-        functionName: "getPriceUnsafe", args: [id],
-      }) as [bigint, bigint, bigint, bigint];
-      return Number(BigInt(Math.floor(Date.now() / 1000)) - publishTime);
-    })
-  );
+  const [btcAge, eurAge, usdcAge] = await Promise.all([
+    getOracleAgeSeconds(PRICE_IDS.BTC),
+    getOracleAgeSeconds(PRICE_IDS.EUR),
+    getOracleAgeSeconds(PRICE_IDS.USDC),
+  ]);
 
-  // Bot liveness: compare last-block.txt to current block
-  const lastBlock = readLastBlock(); // from pool-reader.ts
-  const currentBlock = await publicClient.getBlockNumber();
-  const botAlive = (currentBlock - lastBlock) < 200n; // ~96s at 0.48s/block
+  // Bot liveness: compare last-block.txt to current block (~0.48s/block, 200 blocks ≈ 96s)
+  const lastBlock     = readLastBlock();
+  const currentBlock  = await publicClient.getBlockNumber();
+  const botAlive      = (currentBlock - lastBlock) < 200n;
 
   return {
-    usdc_utilization: utilization(usdcReserve),
-    eurc_utilization: utilization(eurcReserve),
-    btc_utilization:  utilization(btcReserve),
+    usdc_utilization: utilization(usdcR),
+    eurc_utilization: utilization(eurcR),
+    btc_utilization:  utilization(btcR),
     btc_pyth_age_sec: btcAge,
     eur_pyth_age_sec: eurAge,
     usdc_pyth_age_sec: usdcAge,
     bot_last_block:   Number(lastBlock),
     bot_alive:        botAlive,
-    total_bad_debt_usd: 0, // computed separately from known-borrowers
+    total_bad_debt_usd: 0,
     liquidatable_count: 0,
   };
 }
-```
 
-### LLM anomaly detection
+async function runHealthMonitor() {
+  const metrics = await collectMetrics();
 
-```
-Trigger LLM when any of:
-  - utilization changed > 15% in 5 minutes
-  - oracle age > 2× normal
-  - bot offline > 3 min
-  - bad debt increased
+  // Store to Supabase
+  const SB_URL  = process.env.SUPABASE_URL!;
+  const SB_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const SB_HDRS = { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" };
+  await fetch(`${SB_URL}/rest/v1/protocol_metrics`, {
+    method: "POST", headers: SB_HDRS,
+    body: JSON.stringify({ ...metrics, recorded_at: new Date().toISOString() }),
+  }).catch(() => {});
 
-LLM prompt includes:
-  - Current metrics snapshot
-  - Last 10 metric records (trend)
-  - Any active alerts
+  // Rule-based alerts
+  if (metrics.btc_pyth_age_sec > 120)
+    await notify(`⚠️ BTC oracle stale ${metrics.btc_pyth_age_sec}s`);
+  if (metrics.usdc_utilization > 0.90)
+    await notify(`⚠️ xUSDC utilization ${(metrics.usdc_utilization*100).toFixed(1)}%`);
+  if (!metrics.bot_alive)
+    await notify(`🚨 Liquidation bot appears offline (>${metrics.bot_last_block} blocks ago)`);
 
-LLM returns: { risk_level: "LOW"|"MEDIUM"|"HIGH", summary: "..." }
-```
-
-### Daily digest (cron via PM2)
-
-```javascript
-// ecosystem.config.js — separate PM2 entry for digest
-{
-  name: "pm-daily-digest",
-  script: "/root/arcbank/run-pm-digest.sh",
-  interpreter: "bash",
-  cron_restart: "0 8 * * *",  // 8am UTC daily
-  autorestart: false,
+  // LLM anomaly — every 5 min if anomaly
+  // (uses same shouldCallLLM / updateLastLLMCall pattern as coordinator)
 }
+setInterval(runHealthMonitor, 60_000);
 ```
+
+### Daily digest
+
+Use **OS crontab** (NOT PM2 cron_restart — unreliable with autorestart:false):
 
 ```bash
-# run-pm-digest.sh
-exec /usr/bin/ts-node --transpile-only -P /root/arcbank/tsconfig.hardhat.json \
-  /root/arcbank/agents/protocol-manager-digest.ts
+# On VPS: crontab -e
+0 8 * * * /usr/bin/ts-node --transpile-only -P /root/arcbank/tsconfig.hardhat.json /root/arcbank/agents/pm-daily-digest.ts >> /root/arcbank/logs/pm-digest.log 2>&1
 ```
 
-Separate file `agents/protocol-manager-digest.ts` — runs once, sends daily summary, exits.
+Separate file `agents/pm-daily-digest.ts` — runs once, sends LLM daily summary, exits 0.
 
 ---
 
 ## PHASE 3 — Update ecosystem.config.js (10 min)
 
 ```javascript
-// Remove coordinator-agent entry
-// Add protocol-manager entry
-
+// Replace coordinator-agent entry with protocol-manager:
 {
   name: "protocol-manager",
   script: "/root/arcbank/run-protocol-manager.sh",
@@ -274,87 +306,72 @@ Separate file `agents/protocol-manager-digest.ts` — runs once, sends daily sum
   restart_delay: 10000,
   max_restarts: 10,
   min_uptime: "15s",
-  out_file: "logs/pm-out.log",
+  out_file:   "logs/pm-out.log",
   error_file: "logs/pm-err.log",
   log_date_format: "YYYY-MM-DD HH:mm:ss",
   merge_logs: true,
 },
 ```
 
+Note: `signal-agent` is managed via its own setup (`/root/signal-agent/`), not this ecosystem file.
+
 ---
 
-## PHASE 4 — VPS deployment (careful)
+## PHASE 4 — VPS deployment (careful sequence)
 
 ```bash
-# Check RAM before starting
+# 1. Check RAM
 free -m  # must be > 300MB free after stopping coordinator
 
-# Step 1: Stop coordinator-agent
+# 2. Stop coordinator-agent
 pm2 stop coordinator-agent
 
-# Step 2: Pull + start protocol-manager  
-git pull origin main
+# 3. Pull new code
+cd /root/arcbank && git pull origin main
+
+# 4. Start protocol-manager
 pm2 start ecosystem.config.js --only protocol-manager
+# Wait and verify oracle is being pushed BEFORE restarting bot:
+sleep 20
+pm2 logs protocol-manager --lines 10 --nostream | grep "\[oracle\] pushed"
+# Must see at least 1 "[oracle] pushed" line before continuing
 
-# Wait 30s
-pm2 logs protocol-manager --lines 20
-
-# Step 3: Restart bot with oracle push removed
+# 5. Only after oracle push confirmed — restart bot
 pm2 restart arcbank-bot
+sleep 5
+pm2 logs arcbank-bot --lines 5 --nostream | grep -v "oracle stale — Protocol"
+# Should NOT see oracle push attempts from bot
 
-# Verify
-pm2 status  # should show: arcbank-bot, protocol-manager, signal-agent, personal-agent
-free -m     # should have > 80MB free
+# 6. Setup daily digest cron
+crontab -e  # add: 0 8 * * * /usr/bin/ts-node ...
+
+# 7. Verify final state
+pm2 status  # arcbank-bot, protocol-manager, signal-agent, personal-agent
+free -m     # > 80MB free
 ```
 
 **CHECKPOINT 4:**
 ```
-□ protocol-manager: oracle pushing (logs show "[oracle] pushed")
-□ coordinator.json being written
-□ arcbank-bot: liquidating, NOT pushing oracle
-□ health monitor: metrics stored in Supabase
-□ RAM stable
+□ pm2 logs protocol-manager: "[oracle] pushed" appears every 15s
+□ pm2 logs arcbank-bot: NO oracle push lines
+□ Supabase protocol_metrics: rows appearing every 60s
+□ coordinator.json being updated (check mtime)
+□ RAM stable > 80MB free
+□ crontab entry for daily digest
 ```
-
----
-
-## Things explicitly NOT in scope
-
-| Item | Reason |
-|---|---|
-| "External watchdog" (UptimeRobot) | Use PM2's built-in restart + Telegram alert instead |
-| Auto-restart other processes | PM2 handles this, agent just alerts |
-| Pause borrowing when utilization high | Requires admin function + policy decision |
-| Bad debt detection from full scan | Requires scanning all borrowers, expensive — use known-borrowers.json only |
-
----
-
-## Issues resolved from audit
-
-| Audit issue | Resolution |
-|---|---|
-| 1 - Nonce conflict | Oracle only in Protocol Manager |
-| 2 - Coordinator duplication | Merged into PM, coordinator-agent removed |
-| 3a - Scaled vs real utilization | collectMetrics() multiplies by index |
-| 3b - Bad debt misses new borrowers | Use known-borrowers.json, accept limitation |
-| 3c - Bot liveness via PM2 | Use last-block.txt vs currentBlock instead |
-| 3d - Oracle lag from wrong source | Read from Pyth getPriceUnsafe() directly |
-| 4 - LLM rate limit | Acceptable, same 5-min cooldown applies |
-| 5 - Missing metrics table | Added in Phase 0 |
-| 6 - RAM/OOM | Replace coordinator-agent, same 4 processes |
-| 8 - /v1/health missing | PM heartbeat file + notifier for critical alerts |
-| 9 - coordinator.json race | Single writer (Protocol Manager) |
-| 10 - Daily digest cron | PM2 cron_restart on separate entry |
 
 ---
 
 ## Build order
 
 ```
-Phase 0  Supabase metrics table          10 min
-Phase 1  Remove oracle from bot          30 min
-Phase 2  Write protocol-manager.ts        2h
-Phase 3  Update ecosystem.config.js      10 min
-Phase 4  VPS deployment                  30 min
+Phase 0A  Add PYTH_ADDRESS to config              5 min
+Phase 0B  Export readLastBlock                    2 min
+Phase 0C  Supabase metrics table                 10 min
+Phase 1   Remove oracle from liquidation-bot     30 min + tests
+Phase 2   Write protocol-manager.ts               2h
+Phase 3   Update ecosystem.config.js             10 min
+Phase 4   VPS deployment                         30 min
+
 Total: ~3.5h
 ```
