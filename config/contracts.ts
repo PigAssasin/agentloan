@@ -61,3 +61,11 @@ export const ARC_AGENT_REGISTRY = {
   REPUTATION_REGISTRY: "0x8004B663056A597Dffe9eCcC1965A193B7388713" as `0x${string}`,
   VALIDATION_REGISTRY: "0x8004Cb1BF31DAf7788923b405b754f57acEB4272" as `0x${string}`,
 } as const;
+
+// ── Agent IDs (ERC-8004 token IDs) ──────────────────────────────────────────
+export const AGENT_IDS = {
+  COORDINATOR:     "34625",
+  LIQUIDATION_BOT: "30907",
+  SIGNAL_AGENT:    "31772",
+  PERSONAL_AGENT:  "67459",
+} as const;
