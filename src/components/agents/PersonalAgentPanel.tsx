@@ -279,7 +279,18 @@ export function PersonalAgentPanel() {
               </div>
               <div>
                 <div style={{ ...S, fontSize: 11, color: "#666", marginBottom: 2 }}>RESERVE</div>
-                <div style={{ ...MONO, fontSize: 14, marginTop: 4 }}>${Number(status?.approvedAmount).toLocaleString()} approved</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                  <div style={{ ...MONO, fontSize: 13 }}>
+                    ${Number(status?.approvedAmount).toLocaleString()}
+                    {Number(status?.approvedAmount) < 500 && (
+                      <span style={{ color: "#e65100", marginLeft: 4, fontSize: 11 }}>⚠ low</span>
+                    )}
+                  </div>
+                  <button onClick={handleApprove} disabled={approving}
+                    style={{ border: "2px solid #000", background: approving ? "#eee" : "#000", color: approving ? "#999" : "#fff", padding: "2px 10px", ...S, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                    {approveSending ? "SIGN..." : approveConfirming ? "..." : "+ TOP UP"}
+                  </button>
+                </div>
               </div>
             </div>
           )}
