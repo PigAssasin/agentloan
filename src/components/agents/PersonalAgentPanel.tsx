@@ -77,13 +77,16 @@ export function PersonalAgentPanel() {
   const [llmSaving,  setLlmSaving]  = useState(false);
   const [llmSaved,   setLlmSaved]   = useState(false);
 
-  // Approve + Authorize tx state
+  // Approve + Authorize + Revoke tx state
   const { writeContract: writeApprove, data: approveTx, isPending: approveSending } = useWriteContract();
   const { writeContract: writeAuth,    data: authTx,    isPending: authSending }    = useWriteContract();
+  const { writeContract: writeRevoke,  data: revokeTx,  isPending: revokeSending }  = useWriteContract();
   const { isSuccess: approveOk, isLoading: approveConfirming } = useWaitForTransactionReceipt({ hash: approveTx });
   const { isSuccess: authOk,    isLoading: authConfirming }    = useWaitForTransactionReceipt({ hash: authTx });
+  const { isSuccess: revokeOk,  isLoading: revokeConfirming }  = useWaitForTransactionReceipt({ hash: revokeTx });
   const approving = approveSending || approveConfirming;
   const authing   = authSending   || authConfirming;
+  const revoking  = revokeSending || revokeConfirming;
 
   const loadData = useCallback(async () => {
     if (!address) return;
@@ -108,10 +111,10 @@ export function PersonalAgentPanel() {
 
   // Reload after tx confirmed — small delay to let RPC catch up
   useEffect(() => {
-    if (approveOk || authOk) {
+    if (approveOk || authOk || revokeOk) {
       setTimeout(() => loadData(), 1500);
     }
-  }, [approveOk, authOk, loadData]);
+  }, [approveOk, authOk, revokeOk, loadData]);
 
   if (!isConnected) return null;
   if (loading) return (
@@ -154,6 +157,19 @@ export function PersonalAgentPanel() {
       abi:          MockERC20ABI as any,
       functionName: "approve",
       args:         [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, parseUnits("10000", 6)],
+    }, {
+      onError: (e) => setTxError(e.message?.slice(0, 120)),
+    });
+  }
+
+  function handleRevoke() {
+    if (!address) return;
+    setTxError(null);
+    writeRevoke({
+      address:      ARC_TESTNET_CONTRACTS.X_USDC,
+      abi:          MockERC20ABI as any,
+      functionName: "approve",
+      args:         [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, 0n],
     }, {
       onError: (e) => setTxError(e.message?.slice(0, 120)),
     });
@@ -279,17 +295,25 @@ export function PersonalAgentPanel() {
               </div>
               <div>
                 <div style={{ ...S, fontSize: 11, color: "#666", marginBottom: 2 }}>RESERVE</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "wrap" }}>
                   <div style={{ ...MONO, fontSize: 13 }}>
-                    ${Number(status?.approvedAmount).toLocaleString()}
-                    {Number(status?.approvedAmount) < 500 && (
+                    {status?.approvedAmount === "unlimited"
+                      ? "∞ unlimited"
+                      : `$${Number(status?.approvedAmount).toLocaleString()}`}
+                    {status?.approvedAmount !== "unlimited" && Number(status?.approvedAmount) < 500 && (
                       <span style={{ color: "#e65100", marginLeft: 4, fontSize: 11 }}>⚠ low</span>
                     )}
                   </div>
-                  <button onClick={handleApprove} disabled={approving}
-                    style={{ border: "2px solid #000", background: approving ? "#eee" : "#000", color: approving ? "#999" : "#fff", padding: "2px 10px", ...S, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  <button onClick={handleApprove} disabled={approving || revoking}
+                    style={{ border: "2px solid #000", background: (approving||revoking) ? "#eee" : "#000", color: (approving||revoking) ? "#999" : "#fff", padding: "2px 8px", ...S, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
                     {approveSending ? "SIGN..." : approveConfirming ? "..." : "+ TOP UP"}
                   </button>
+                  {(status?.approvedAmount === "unlimited" || Number(status?.approvedAmount) > 0) && (
+                    <button onClick={handleRevoke} disabled={revoking || approving}
+                      style={{ border: "2px solid #cc0000", background: "#fff", color: "#cc0000", padding: "2px 8px", ...S, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                      {revokeSending ? "SIGN..." : revokeConfirming ? "..." : "REVOKE"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

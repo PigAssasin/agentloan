@@ -62,7 +62,10 @@ export async function GET(req: NextRequest) {
       totalCollUSD:   (Number(totalCollUSD) / 1e18).toFixed(2),
       totalDebtUSD:   (Number(totalDebtUSD) / 1e18).toFixed(2),
       isAuthorized,
-      approvedAmount: (Number(approved) / 1e6).toFixed(2),
+      // If allowance > 2^128, treat as "unlimited" (user approved max uint256)
+      approvedAmount: (approved as bigint) > 2n ** 128n
+        ? "unlimited"
+        : (Number(approved) / 1e6).toFixed(2),
       hasTelegram:    !!tg?.chat_id,
     });
   } catch (e: any) {
