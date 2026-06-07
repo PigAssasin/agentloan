@@ -35,5 +35,21 @@ module.exports = {
       log_date_format: "YYYY-MM-DD HH:mm:ss",
       merge_logs: true,
     },
+    {
+      name:        "personal-agent",
+      script:      "/root/arcbank/run-personal-agent.sh",
+      cwd:         "/root/arcbank",
+      interpreter: "bash",
+      env: {
+        NEXT_PUBLIC_ARC_RPC: "https://rpc.testnet.arc.network",
+      },
+      restart_delay:  10000,
+      max_restarts:   10,
+      min_uptime:     "15s",
+      out_file:  "logs/personal-agent-out.log",
+      error_file:"logs/personal-agent-err.log",
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
+      merge_logs: true,
+    },
   ],
 };
