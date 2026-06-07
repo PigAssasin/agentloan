@@ -41,7 +41,7 @@ const SECTIONS = [
   {
     title: "DeFi Agents",
     slug: "agents",
-    desc: "Liquidation Bot, Guardian Agent, and Yield Optimizer — autonomous protocol protection.",
+    desc: "Coordinator, Liquidation Bot, and Signal Agent — autonomous agents running 24/7.",
   },
   {
     title: "Smart Contracts",
