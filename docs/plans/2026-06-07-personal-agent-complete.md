@@ -1,6 +1,6 @@
-# Personal Agent — Complete Build Plan (v3 — reviewed)
-> Contracts deployed ✓ — All logical errors from review corrected
-> Created: 2026-06-07 | Reviewed: 2026-06-07
+# Personal Agent — Complete Build Plan (v4 — Arc docs verified)
+> Contracts deployed ✓ — Reviewed + ERC-8004 identity + reputation recording added
+> Created: 2026-06-07 | Updated: 2026-06-07
 
 ---
 
@@ -14,7 +14,7 @@ User wallet (MetaMask)
 PersonalAgentPanel (UI / Vercel)
   → reads settings from Supabase via API
   → shows HF, last action, history, Telegram link
-  → POST requires EIP-712 signature to prove wallet ownership
+  → POST requires EIP-191 signature to prove wallet ownership
 
 Telegram Bot
   → /start 0x... links wallet to chat_id
@@ -36,6 +36,97 @@ personal-agent.ts (VPS, PM2, DRY_RUN supported)
 AgentExecutor.sol (on-chain ✓)
   emergencyProtect: withdrawFor + repayFor atomic
   deployToYield: pull from wallet → depositFor
+```
+
+---
+
+## PHASE 0 — ERC-8004 Agent Registration (15 min)
+
+> Arc docs: https://docs.arc.io/arc/tutorials/register-your-first-ai-agent
+> Coordinator (#34625), Bot (#30907), Signal (#31772) đã register.
+> Personal Agent cần được register như agent type thứ 4.
+
+### 0A: Chuẩn bị metadata JSON
+
+```json
+{
+  "name": "AgentLoan Personal Agent",
+  "description": "Autonomous DeFi position manager — monitors HF, auto-repays, deploys yield on AgentLoan protocol",
+  "agent_type": "defi_position_manager",
+  "capabilities": [
+    "position_monitoring",
+    "auto_repay",
+    "yield_deployment",
+    "emergency_protect"
+  ],
+  "version": "1.0.0",
+  "protocol": "AgentLoan on Arc Testnet 5042002"
+}
+```
+
+Upload lên IPFS (Pinata) → lấy URI dạng `ipfs://Qm...`
+Hoặc dùng URI mẫu của Arc docs: `ipfs://bafkreibdi6623n3xpf7ymk62ckb4bo75o3qemwkpfvp5i25j66itxvsoei`
+
+### 0B: Script `scripts/register-personal-agent.ts`
+
+```typescript
+import { ethers } from "hardhat";
+import { ARC_AGENT_REGISTRY } from "../config/contracts";
+
+const METADATA_URI = "ipfs://YOUR_HASH"; // upload JSON trước
+
+async function main() {
+  const [deployer] = await ethers.getSigners();
+
+  const identityRegistry = new ethers.Contract(
+    ARC_AGENT_REGISTRY.IDENTITY_REGISTRY,
+    ["function register(string) external returns (uint256)",
+     "event Transfer(address indexed,address indexed,uint256 indexed)"],
+    deployer,
+  );
+
+  console.log("Registering Personal Agent...");
+  const tx = await identityRegistry.register(METADATA_URI);
+  const receipt = await tx.wait();
+
+  // Extract agent ID from Transfer event
+  const transferLog = receipt.logs.find(
+    (l: any) => l.fragment?.name === "Transfer"
+  );
+  const agentId = transferLog?.args?.[2]?.toString();
+
+  console.log("TX:", tx.hash);
+  console.log("Personal Agent ID:", agentId);
+  console.log("Add to config/contracts.ts:");
+  console.log(`  PERSONAL_AGENT_ID: "${agentId}"`);
+}
+
+main().catch(console.error);
+```
+
+### 0C: Chạy script + update config
+
+```bash
+TS_NODE_PROJECT=tsconfig.hardhat.json npx hardhat run scripts/register-personal-agent.ts --network arcTestnet
+```
+
+Sau khi chạy, thêm vào `config/contracts.ts`:
+```typescript
+// Arc ERC-8004 — Agent IDs
+export const AGENT_IDS = {
+  COORDINATOR:     "34625",
+  LIQUIDATION_BOT: "30907",
+  SIGNAL_AGENT:    "31772",
+  PERSONAL_AGENT:  "<new_id>",  // ← thêm vào đây
+} as const;
+```
+
+**CHECKPOINT 0:**
+```
+□ Metadata JSON uploaded to IPFS
+□ register() called → Agent ID received
+□ AGENT_IDS.PERSONAL_AGENT updated in config
+□ Verify: testnet.arcscan.app/address/deployer → thấy NFT mới
 ```
 
 ---
@@ -468,6 +559,27 @@ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SE
 const EXECUTOR_ADDR = ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR;
 const X_USDC_ADDR   = ARC_TESTNET_CONTRACTS.X_USDC;
 const MIN_COVERAGE  = 0.10; // only act if approved covers ≥10% of needed repay
+
+// ERC-8004 — ReputationRegistry
+// Docs: https://docs.arc.io/arc/tutorials/register-your-first-ai-agent
+// Agent owners CANNOT record reputation for themselves (per ERC-8004)
+// → use deployer wallet (validator) to record reputation for personal-agent wallet
+const REPUTATION_REGISTRY = ARC_AGENT_REGISTRY.REPUTATION_REGISTRY;
+const PERSONAL_AGENT_ID   = AGENT_IDS.PERSONAL_AGENT; // set after Phase 0
+
+async function recordReputation(tag: string, score: number): Promise<void> {
+  if (DRY_RUN || !PERSONAL_AGENT_ID) return;
+  // Validator wallet must be DIFFERENT from agent owner wallet (ERC-8004 rule)
+  // Use deployer wallet as validator — already has DEPLOYER_PRIVATE_KEY in .env.local
+  const validator = createBotWallet(); // reuse existing pattern
+  const feedbackHash = keccak256(toHex(tag));
+  await validator.writeContract({
+    address: REPUTATION_REGISTRY,
+    abi: parseAbi(["function giveFeedback(uint256,int128,uint8,string,string,string,string,bytes32) external"]),
+    functionName: "giveFeedback",
+    args: [BigInt(PERSONAL_AGENT_ID), BigInt(score), 0, tag, "", "", "", feedbackHash],
+  } as any);
+}
 ```
 
 ### D2: Repay formula — MUST use weighted collateral
@@ -660,6 +772,11 @@ async function executeDecision(user, pos, decision, approved) {
       reason: decision.reason,
     });
     await saveMemory(user.wallet_address, `Repaid $${(Number(repayAmount)/1e6).toFixed(0)}: HF ${hfBefore.toFixed(2)}→${hfAfter.toFixed(2)}. ${decision.reason}`);
+
+    // ERC-8004: record reputation after successful action
+    // Docs: score = loanRepaidOnTime ? 100 : 20 (arc.io/arc/tutorials/register-your-first-ai-agent)
+    const repayScore = hfAfter > hfBefore ? 95 : 20;
+    await recordReputation("emergency_protect", repayScore).catch(() => {}); // non-blocking
   }
 
   if (decision.action === "deploy_yield") {
@@ -682,6 +799,9 @@ async function executeDecision(user, pos, decision, approved) {
       txHash: receipt.hash,
       reason: decision.reason,
     });
+
+    // ERC-8004: record reputation for yield deployment
+    await recordReputation("deploy_yield", 80).catch(() => {}); // non-blocking
   }
 }
 ```
@@ -849,11 +969,28 @@ Wait 1 cycle
 ## Build order
 
 ```
-Phase A  Supabase + env vars          45 min  ← START
+Phase 0  ERC-8004 registration        15 min  ← START (one-time, no code)
+Phase A  Supabase + env vars          45 min
 Phase B  API routes + helpers          1.5h
 Phase C  PersonalAgentPanel UI         2h
 Phase D  personal-agent.ts             2.5h
 Phase E  Integration test (DRY_RUN first)  30 min
 
-Total: ~7h
+Total: ~7.5h
 ```
+
+## ERC-8004 score logic (from Arc docs)
+
+```
+Action                  Score    Condition
+emergency_protect       95       hfAfter > hfBefore (success)
+emergency_protect       20       hfAfter <= hfBefore (partial/fail)
+deploy_yield            80       always (yield deployment is positive)
+```
+
+Arc docs quote: "score = loanRepaidOnTime ? 100 : 20 for lending protocols"
+
+**Why this matters:**
+Personal Agent builds on-chain reputation over time. Users and other protocols
+can verify the agent's track record via ReputationRegistry. High-reputation agents
+can eventually unlock ERC-8183 job opportunities and higher trust levels.
