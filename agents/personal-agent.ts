@@ -56,7 +56,7 @@ const EXECUTOR_ABI = parseAbi([
 ]);
 
 const POOL_ABI = parseAbi([
-  "function getUserAccountData(address) external view returns (uint256 totalCollRaw, uint256 totalDebtUSD, uint256 availBorrows, uint256 totalWeightedColl, uint256 avgLiqThreshold, uint256 healthFactor)",
+  "function getUserAccountData(address) external view returns (uint256 totalCollateralUSD, uint256 totalRawCollateralUSD, uint256 totalDebtUSD, uint256 availableBorrowsUSD, uint256 healthFactor)",
   "function agentAuthorized(address,address) external view returns (bool)",
 ]);
 
@@ -321,7 +321,7 @@ async function runCycle() {
           address: ARC_TESTNET_CONTRACTS.LENDING_POOL, abi: POOL_ABI,
           functionName: "getUserAccountData", args: [user.wallet_address as `0x${string}`],
         }) as unknown as bigint[];
-        const hfAfter = Number(hfAfterData[5]) / 1e18;
+        const hfAfter = Number(hfAfterData[4]) / 1e18; // index 4 = healthFactor in 5-field struct
 
         await logAction(user.wallet_address, decision.action, {
           reason: decision.reason, amountUsd: Number(actual)/1e6,

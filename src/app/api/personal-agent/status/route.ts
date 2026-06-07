@@ -12,8 +12,9 @@ const arcChain = {
 
 const client = createPublicClient({ chain: arcChain, transport: http() });
 
+// UserAccountData struct: (totalCollateralUSD, totalRawCollateralUSD, totalDebtUSD, availableBorrowsUSD, healthFactor)
 const POOL_ABI = parseAbi([
-  "function getUserAccountData(address) external view returns (uint256,uint256,uint256,uint256,uint256,uint256)",
+  "function getUserAccountData(address) external view returns (uint256,uint256,uint256,uint256,uint256)",
   "function agentAuthorized(address,address) external view returns (bool)",
 ]);
 
@@ -47,7 +48,8 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const [totalCollUSD, totalDebtUSD, , , , healthFactor] = accountData as unknown as bigint[];
+    // Struct order: totalCollateralUSD (weighted), totalRawCollateralUSD, totalDebtUSD, availableBorrowsUSD, healthFactor
+    const [totalCollUSD, , totalDebtUSD, , healthFactor] = accountData as unknown as bigint[];
 
     const { data: tg } = await supabaseAdmin
       .from("telegram_connections")
