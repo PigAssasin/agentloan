@@ -52,12 +52,14 @@ const SB_HEADERS = { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Con
 
 const EXECUTOR_ABI = parseAbi([
   "function emergencyProtect(address user, uint256 repayAmount) external",
+  "function repayFromWallet(address user, uint256 repayAmount) external",
   "function deployToYield(address user, uint256 amount) external",
 ]);
 
 const POOL_ABI = parseAbi([
   "function getUserAccountData(address) external view returns (uint256 totalCollateralUSD, uint256 totalRawCollateralUSD, uint256 totalDebtUSD, uint256 availableBorrowsUSD, uint256 healthFactor)",
   "function agentAuthorized(address,address) external view returns (bool)",
+  "function getUserSupplyBalance(address token, address user) external view returns (uint256)",
 ]);
 
 const ERC20_ABI = parseAbi([
@@ -307,10 +309,22 @@ async function runCycle() {
       }
 
       try {
+        // Check if user has xUSDC supply to withdraw
+        // If they only have xUSDC as both collateral AND debt, use repayFromWallet
+        // (emergencyProtect fails because withdrawing collateral drops HF before repay)
+        const xUSDCSupply = await publicClient.readContract({
+          address: ARC_TESTNET_CONTRACTS.LENDING_POOL, abi: POOL_ABI,
+          functionName: "getUserSupplyBalance" as any,
+          args: [ARC_TESTNET_CONTRACTS.X_USDC, user.wallet_address as `0x${string}`],
+        }) as bigint;
+
+        const useWalletRepay = xUSDCSupply === 0n || xUSDCSupply < actual;
+        const functionName = useWalletRepay ? "repayFromWallet" : "emergencyProtect";
+
         const hash = await deployerWallet.writeContract({
           address:      ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR,
           abi:          EXECUTOR_ABI,
-          functionName: "emergencyProtect",
+          functionName,
           args:         [user.wallet_address as `0x${string}`, actual],
         });
         await publicClient.waitForTransactionReceipt({ hash });

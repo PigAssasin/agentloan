@@ -28,7 +28,7 @@ export const ARC_TESTNET_CONTRACTS = {
   PRICE_ORACLE:          "0x440B0f69AADd464d88ED205191ed1a45374bCCF6" as `0x${string}`, // PriceOraclePyth v3 — EUR 30d staleness
   INTEREST_RATE_STRATEGY:"0x22B2A153F7694e49096ef91D627a80c5b6602Ffd" as `0x${string}`,
 
-  AGENT_EXECUTOR:        "0x81E1d5F98e2804be55190610Dcb6DbB71E9CABdA" as `0x${string}`,
+  AGENT_EXECUTOR:        "0x1e009Ea4e463086bd70fe8F8B0E7FFfa64bD25c6" as `0x${string}`,
 
   // Mock testnet tokens — 24h on-chain cooldown per wallet
   X_USDC:   "0xFa090bd1A524D861542888B6c5e7965dde1F4f35" as `0x${string}`,

@@ -72,20 +72,29 @@ contract AgentExecutor is Ownable {
 
     /**
      * Atomic: withdraw user's xUSDC supply + repay user's xUSDC debt in 1 tx.
+     * Use only when xUSDC supply != xUSDC debt (different tokens as collateral/debt).
      * Requires: user authorized this contract in pool.
-     * No gap between withdraw and repay — prevents liquidation mid-action.
      */
     function emergencyProtect(address user, uint256 repayAmount) external onlyAgent {
         uint256 supplyBal = pool.getUserSupplyBalance(address(xUSDC), user);
         if (repayAmount > supplyBal) revert InsufficientSupply(supplyBal, repayAmount);
 
-        // Step 1: withdraw from user's supply → tokens come to this contract
         pool.withdrawFor(user, address(xUSDC), repayAmount, address(this));
-
-        // Step 2: approve pool + repay user's debt — same tx, no gap
         xUSDC.forceApprove(address(pool), repayAmount);
         pool.repayFor(user, address(xUSDC), repayAmount);
 
+        emit EmergencyProtected(user, repayAmount);
+    }
+
+    /**
+     * Pull xUSDC directly from user's wallet → repay user's debt.
+     * Use when xUSDC is both collateral and debt (emergencyProtect would fail).
+     * Requires: user approved xUSDC to this contract.
+     */
+    function repayFromWallet(address user, uint256 repayAmount) external onlyAgent {
+        xUSDC.safeTransferFrom(user, address(this), repayAmount);
+        xUSDC.forceApprove(address(pool), repayAmount);
+        pool.repayFor(user, address(xUSDC), repayAmount);
         emit EmergencyProtected(user, repayAmount);
     }
 }
