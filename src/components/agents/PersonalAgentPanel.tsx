@@ -257,7 +257,20 @@ export function PersonalAgentPanel() {
               </div>
               <div>
                 <div style={{ ...S, fontSize: 11, color: "#666", marginBottom: 2 }}>TARGET</div>
-                <div style={{ ...MONO, fontSize: 20, color: "#666" }}>{settings?.hfTarget?.toFixed(2)}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="number" min="1.1" max="3.0" step="0.05" value={hfInput}
+                    onChange={e => setHfInput(e.target.value)}
+                    style={{ border: "2px solid #000", padding: "2px 8px", ...MONO, fontSize: 16, width: 64, background: "#fff" }}
+                  />
+                  {hfInput !== (settings?.hfTarget?.toFixed(2) ?? "1.30") && (
+                    <button onClick={() => handleEnable(!!settings?.enabled)}
+                      disabled={saving}
+                      style={{ border: "2px solid #000", background: "#000", color: "#fff", padding: "3px 10px", ...S, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                      {saving ? "..." : "SAVE"}
+                    </button>
+                  )}
+                </div>
               </div>
               <div>
                 <div style={{ ...S, fontSize: 11, color: "#666", marginBottom: 2 }}>RESERVE</div>
