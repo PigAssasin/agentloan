@@ -16,7 +16,8 @@ import * as dotenv from "dotenv";
 import * as path   from "path";
 dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 
-import { createClient }                      from "@supabase/supabase-js";
+// Supabase via REST API — avoids SDK module resolution issues with ts-node nodenext
+// Same functionality, no dependency required
 import { createPublicClient, createWalletClient, http, parseAbi, parseUnits, formatUnits, keccak256, toHex } from "viem";
 import { privateKeyToAccount }               from "viem/accounts";
 import { callLLM }                           from "./lib/gemini-client";
@@ -42,10 +43,10 @@ const publicClient = createPublicClient({ chain: arcChain, transport: http() });
 const deployerAccount   = privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`);
 const deployerWallet    = createWalletClient({ account: deployerAccount, chain: arcChain, transport: http() });
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+// Supabase REST API (no SDK — avoids module resolution issues with ts-node nodenext)
+const SB_URL     = process.env.SUPABASE_URL!;
+const SB_KEY     = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const SB_HEADERS = { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" };
 
 // ── ABIs ────────────────────────────────────────────────────────────────────
 
@@ -89,12 +90,12 @@ interface Decision {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 async function getEnabledUsers(): Promise<UserSub[]> {
-  const { data } = await supabase
-    .from("user_agent_subscriptions")
-    .select("wallet_address,hf_target,enabled,last_llm_call_at,llm_api_key_enc")
-    .eq("enabled", true)
-    .eq("agent_type", "personal");
-  return data ?? [];
+  const url = new URL(`${SB_URL}/rest/v1/user_agent_subscriptions`);
+  url.searchParams.set("select", "wallet_address,hf_target,enabled,last_llm_call_at,llm_api_key_enc");
+  url.searchParams.set("enabled", "eq.true");
+  url.searchParams.set("agent_type", "eq.personal");
+  const res = await fetch(url.toString(), { headers: SB_HEADERS });
+  return res.ok ? res.json() : [];
 }
 
 async function getHFBatch(wallets: string[]): Promise<Map<string, { hf: number; debtUSD: number; weightedColl: number }>> {
@@ -123,9 +124,12 @@ function shouldCallLLM(user: UserSub): boolean {
 }
 
 async function updateLastLLMCall(wallet: string) {
-  await supabase.from("user_agent_subscriptions")
-    .update({ last_llm_call_at: new Date().toISOString() })
-    .eq("wallet_address", wallet);
+  const url = new URL(`${SB_URL}/rest/v1/user_agent_subscriptions`);
+  url.searchParams.set("wallet_address", `eq.${wallet}`);
+  await fetch(url.toString(), {
+    method: "PATCH", headers: SB_HEADERS,
+    body: JSON.stringify({ last_llm_call_at: new Date().toISOString() }),
+  });
 }
 
 function decideRuleBased(user: UserSub, hf: number, debtUSD: number, weightedColl: number, idleUSDC: bigint): Decision {
@@ -140,9 +144,12 @@ function decideRuleBased(user: UserSub, hf: number, debtUSD: number, weightedCol
 }
 
 async function decideLLM(user: UserSub, hf: number, debtUSD: number, weightedColl: number, approved: bigint): Promise<Decision> {
-  const { data: memories } = await supabase.from("agent_memory")
-    .select("content").eq("wallet_address", user.wallet_address)
-    .order("created_at", { ascending: false }).limit(10);
+  const memUrl = new URL(`${SB_URL}/rest/v1/agent_memory`);
+  memUrl.searchParams.set("select", "content");
+  memUrl.searchParams.set("wallet_address", `eq.${user.wallet_address}`);
+  memUrl.searchParams.set("order", "created_at.desc");
+  memUrl.searchParams.set("limit", "10");
+  const memories: { content: string }[] = await fetch(memUrl.toString(), { headers: SB_HEADERS }).then(r => r.json()).catch(() => []);
 
   const prompt = `You are a DeFi position manager for wallet ${user.wallet_address.slice(0,10)}...
 
@@ -176,8 +183,12 @@ Respond in JSON only: {"action":"repay"|"deploy_yield"|"skip","amount_usd":0,"re
 async function notifyUser(wallet: string, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
-  const { data: conn } = await supabase.from("telegram_connections")
-    .select("chat_id").eq("wallet_address", wallet).single();
+  const tgUrl = new URL(`${SB_URL}/rest/v1/telegram_connections`);
+  tgUrl.searchParams.set("select", "chat_id");
+  tgUrl.searchParams.set("wallet_address", `eq.${wallet}`);
+  tgUrl.searchParams.set("limit", "1");
+  const tgRows: { chat_id: string }[] = await fetch(tgUrl.toString(), { headers: SB_HEADERS }).then(r => r.json()).catch(() => []);
+  const conn = tgRows[0];
   if (!conn) return;
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
@@ -190,20 +201,22 @@ async function logAction(wallet: string, action: string, data: {
   reason: string; amountUsd?: number; hfBefore?: number; hfAfter?: number;
   txHash?: string; success: boolean; error?: string;
 }) {
-  await supabase.from("agent_actions").insert({
-    wallet_address: wallet, agent_type: "personal",
-    action, reason: data.reason,
-    amount_usd: data.amountUsd,
-    hf_before: data.hfBefore, hf_after: data.hfAfter,
-    success: data.success, tx_hash: data.txHash, error: data.error,
-  });
+  await fetch(`${SB_URL}/rest/v1/agent_actions`, {
+    method: "POST", headers: SB_HEADERS,
+    body: JSON.stringify({
+      wallet_address: wallet, agent_type: "personal",
+      action, reason: data.reason, amount_usd: data.amountUsd,
+      hf_before: data.hfBefore, hf_after: data.hfAfter,
+      success: data.success, tx_hash: data.txHash, error: data.error,
+    }),
+  }).catch(() => {});
 }
 
 async function saveMemory(wallet: string, content: string) {
-  await supabase.from("agent_memory").insert({
-    wallet_address: wallet, agent_type: "personal",
-    type: "outcome", content,
-  });
+  await fetch(`${SB_URL}/rest/v1/agent_memory`, {
+    method: "POST", headers: SB_HEADERS,
+    body: JSON.stringify({ wallet_address: wallet, agent_type: "personal", type: "outcome", content }),
+  }).catch(() => {});
 }
 
 async function recordReputation(tag: string, score: number) {
