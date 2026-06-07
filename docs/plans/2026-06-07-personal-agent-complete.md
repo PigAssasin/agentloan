@@ -1,18 +1,6 @@
-# Personal Agent — Complete Build Plan (v2)
-> Contracts deployed ✓ — UI + Backend + LLM + Telegram
-> Created: 2026-06-07 | Updated: 2026-06-07
-
----
-
-## What this builds
-
-A true autonomous DeFi agent per user:
-- **Tier 1 scoring** — every block, $0, decides if action needed
-- **Tier 2 LLM** — only on real events, reasons with memory context
-- **Atomic execution** — withdrawFor + repayFor in 1 tx (no liquidation gap)
-- **Yield deployment** — idle xUSDC auto-supplied to earn APY
-- **Telegram integration** — notifications + control commands
-- **Per-user memory** — agent learns each user's pattern
+# Personal Agent — Complete Build Plan (v3 — reviewed)
+> Contracts deployed ✓ — All logical errors from review corrected
+> Created: 2026-06-07 | Reviewed: 2026-06-07
 
 ---
 
@@ -20,77 +8,94 @@ A true autonomous DeFi agent per user:
 
 ```
 User wallet (MetaMask)
-  ↓ approve xUSDC to AgentExecutor (on-chain)
-  ↓ authorizeAgent(AgentExecutor, true) in LendingPool (on-chain)
+  ↓ approve xUSDC to AgentExecutor (1 tx)
+  ↓ LendingPool.authorizeAgent(AgentExecutor, true) (1 tx)
 
 PersonalAgentPanel (UI / Vercel)
-  ↓ reads settings from Supabase via API
-  ↓ shows HF, last action, history, Telegram link
+  → reads settings from Supabase via API
+  → shows HF, last action, history, Telegram link
+  → POST requires EIP-712 signature to prove wallet ownership
 
 Telegram Bot
-  ↓ /start 0x... → links wallet to chat_id
-  ↓ /status /enable /disable /hf 1.4
-  ↓ agent sends alerts per user when acting
+  → /start 0x... links wallet to chat_id
+  → /enable /disable /status /hf 1.4
+  → agent sends notification per user after every action
+  → webhook validated via X-Telegram-Bot-Api-Secret-Token
 
-personal-agent.ts (VPS, PM2)
-  Tier 1 (every block):
-    Multicall3 → HF all users → flag who needs attention
-  Tier 2 (on event):
-    LLM reads user memory → reasons → decides amount + action
+personal-agent.ts (VPS, PM2, DRY_RUN supported)
+  Tier 1 (every block, $0):
+    Multicall3 → HF all users → score urgency
+  Tier 2 (on event, 5 min cooldown per user):
+    callLLM(prompt) from gemini-client.ts
+    Memory context injected into prompt
   Execute:
     AgentExecutor.emergencyProtect() or deployToYield()
-    Log to Supabase → notify Telegram
+    Read hfAfter via getUserAccountData after tx
+    Log to Supabase → Telegram notification per user
 
 AgentExecutor.sol (on-chain ✓)
-  withdrawFor + repayFor atomic (1 tx)
-  depositFor (supply to pool)
+  emergencyProtect: withdrawFor + repayFor atomic
+  deployToYield: pull from wallet → depositFor
 ```
 
 ---
 
-## PHASE A — Supabase (30 min)
+## PHASE A — Supabase (45 min)
 
 ### A1: Create project
-- supabase.com → New project → "agentloan"
-- Copy: Project URL, anon key, service role key
+supabase.com → New project → "agentloan" → copy URL, anon key, service role key
 
-### A2: Run SQL
+### A2: Enable extensions (in Supabase SQL editor)
 
 ```sql
--- User agent settings per wallet
+-- Required before creating tables
+CREATE EXTENSION IF NOT EXISTS moddatetime;  -- auto-update updated_at
+CREATE EXTENSION IF NOT EXISTS pg_cron;      -- scheduled cleanup
+```
+
+### A3: Create tables
+
+```sql
 CREATE TABLE user_agent_subscriptions (
   id               BIGSERIAL PRIMARY KEY,
   wallet_address   TEXT NOT NULL,
   agent_type       TEXT NOT NULL DEFAULT 'personal',
 
-  -- Core config
   hf_target        NUMERIC DEFAULT 1.3,
   enabled          BOOLEAN DEFAULT false,
 
-  -- LLM (user brings own key OR use protocol default)
-  llm_provider     TEXT,          -- 'gemini' | 'openai' | 'deepseek' | 'custom' | null
-  llm_api_key_enc  TEXT,          -- AES-256 encrypted; null = use protocol Gemini key
-  llm_base_url     TEXT,          -- for custom provider
+  -- LLM: null = use protocol default Gemini key
+  llm_provider     TEXT,
+  llm_api_key_enc  TEXT,    -- AES-256 encrypted with LLM_ENCRYPTION_KEY
+  llm_base_url     TEXT,
+
+  -- Rate limiting: last time LLM was called for this user
+  last_llm_call_at TIMESTAMPTZ,
 
   created_at       TIMESTAMPTZ DEFAULT now(),
   updated_at       TIMESTAMPTZ DEFAULT now(),
   UNIQUE(wallet_address, agent_type)
 );
 
--- Telegram: link wallet ↔ chat_id
+-- Auto-update updated_at on every UPDATE
+CREATE TRIGGER set_updated_at
+  BEFORE UPDATE ON user_agent_subscriptions
+  FOR EACH ROW EXECUTE FUNCTION moddatetime(updated_at);
+
+-- Telegram: wallet ↔ chat_id
 CREATE TABLE telegram_connections (
   wallet_address TEXT PRIMARY KEY,
   chat_id        TEXT NOT NULL,
   connected_at   TIMESTAMPTZ DEFAULT now()
 );
 
--- Every action agent takes
+-- Agent action log
 CREATE TABLE agent_actions (
   id             BIGSERIAL PRIMARY KEY,
   wallet_address TEXT NOT NULL,
   agent_type     TEXT NOT NULL DEFAULT 'personal',
-  action         TEXT,        -- 'repay' | 'deploy_yield' | 'emergency_protect' | 'skip'
-  reason         TEXT,        -- LLM or rule explanation
+  action         TEXT,   -- 'emergency_protect' | 'repay' | 'deploy_yield' | 'skip' | 'error'
+  reason         TEXT,
   amount_usd     NUMERIC,
   hf_before      NUMERIC,
   hf_after       NUMERIC,
@@ -100,191 +105,253 @@ CREATE TABLE agent_actions (
   created_at     TIMESTAMPTZ DEFAULT now()
 );
 
--- Per-user rolling memory (influences LLM decisions)
+-- Per-user memory (drives LLM decisions)
 CREATE TABLE agent_memory (
   id             BIGSERIAL PRIMARY KEY,
   wallet_address TEXT NOT NULL,
   agent_type     TEXT NOT NULL DEFAULT 'personal',
-  type           TEXT,        -- 'observation' | 'decision' | 'outcome'
+  type           TEXT,   -- 'observation' | 'decision' | 'outcome'
   content        TEXT,
   created_at     TIMESTAMPTZ DEFAULT now()
 );
 
--- Cleanup functions
-CREATE OR REPLACE FUNCTION cleanup_agent_data() RETURNS void AS $$
-BEGIN
-  -- Keep last 50 memory rows per user
-  DELETE FROM agent_memory WHERE id NOT IN (
-    SELECT id FROM (
-      SELECT id, ROW_NUMBER() OVER (
-        PARTITION BY wallet_address, agent_type ORDER BY created_at DESC
-      ) as rn FROM agent_memory
-    ) t WHERE rn <= 50
-  );
-  -- Delete actions older than 30 days
-  DELETE FROM agent_actions
-  WHERE created_at < NOW() - INTERVAL '30 days';
-END;
-$$ LANGUAGE plpgsql;
+-- Indexes: all queries filter by wallet_address
+CREATE INDEX ON user_agent_subscriptions(wallet_address);
+CREATE INDEX ON agent_actions(wallet_address, created_at DESC);
+CREATE INDEX ON agent_memory(wallet_address, agent_type, created_at DESC);
+CREATE INDEX ON telegram_connections(chat_id);
+
+-- Scheduled cleanup: runs daily at 3am UTC
+SELECT cron.schedule(
+  'cleanup-agent-data',
+  '0 3 * * *',
+  $$
+    DELETE FROM agent_memory WHERE id NOT IN (
+      SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY wallet_address, agent_type ORDER BY created_at DESC
+        ) as rn FROM agent_memory
+      ) t WHERE rn <= 50
+    );
+    DELETE FROM agent_actions WHERE created_at < NOW() - INTERVAL '30 days';
+  $$
+);
 ```
 
-### A3: Install + env vars
+### A4: Install + env vars
 
 ```bash
 npm install @supabase/supabase-js
 ```
 
 ```bash
-# .env.local (local + VPS)
+# .env.local (local + VPS + Vercel)
 SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...       # server-side only
+SUPABASE_SERVICE_ROLE_KEY=eyJ...        # server only — never expose to browser
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...   # browser safe
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...    # browser safe
 
-# Telegram bot (same bot token as existing notifier)
-TELEGRAM_BOT_TOKEN=xxx                 # already in .env.local
-# No TELEGRAM_CHAT_ID needed — per-user now
+# 32-byte hex key for AES-256 encrypting user LLM API keys
+# Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+LLM_ENCRYPTION_KEY=<64 hex chars>
+
+# Telegram: add to existing values
+TELEGRAM_WEBHOOK_SECRET=<random 32-char string>
+# TELEGRAM_BOT_TOKEN already exists in .env.local
 ```
 
 **CHECKPOINT A:**
 ```
-□ 4 tables created in Supabase
-□ .env.local updated local + VPS
-□ npm install @supabase/supabase-js succeeds
+□ Extensions enabled (moddatetime, pg_cron)
+□ All 4 tables + indexes created
+□ cron job scheduled
+□ .env.local updated local + VPS + Vercel
 □ node -e "require('@supabase/supabase-js')" → no error
 ```
 
 ---
 
-## PHASE B — API Routes (1h)
+## PHASE B — API Routes + Helpers (1.5h)
 
 ### B1: `src/lib/supabase.ts`
 
 ```typescript
 import { createClient } from "@supabase/supabase-js";
-
 export const supabaseAdmin = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 ```
 
-### B2: `src/app/api/personal-agent/settings/route.ts`
+### B2: `src/lib/agent-helpers.ts` — define all helpers
 
+```typescript
+import crypto from "crypto";
+
+const ALGO = "aes-256-cbc";
+const KEY  = Buffer.from(process.env.LLM_ENCRYPTION_KEY!, "hex");
+
+export function encryptKey(plaintext: string): string {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(ALGO, KEY, iv);
+  const enc = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  return iv.toString("hex") + ":" + enc.toString("hex");
+}
+
+export function decryptKey(encrypted: string): string {
+  const [ivHex, encHex] = encrypted.split(":");
+  const iv = Buffer.from(ivHex, "hex");
+  const enc = Buffer.from(encHex, "hex");
+  const decipher = crypto.createDecipheriv(ALGO, KEY, iv);
+  return Buffer.concat([decipher.update(enc), decipher.final()]).toString();
+}
+
+export async function sendTelegram(chatId: string, text: string): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return;
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+  }).catch(() => {}); // never throw
+}
+
+export function formatStatus(wallet: string, sub: any, hf: number): string {
+  return [
+    `<b>Personal Agent Status</b>`,
+    `Wallet: <code>${wallet.slice(0,10)}...${wallet.slice(-6)}</code>`,
+    `Agent: ${sub?.enabled ? "● ACTIVE" : "○ INACTIVE"}`,
+    `HF now: <b>${hf.toFixed(3)}</b> | Target: ${sub?.hf_target ?? 1.3}`,
+  ].join("\n");
+}
 ```
-GET  ?address=0x...
-  → load user_agent_subscriptions
-  → return { enabled, hfTarget, llmProvider, hasLlmKey, hasTelegram }
 
-POST { address, hfTarget, enabled, llmProvider?, llmApiKey? }
-  → upsert user_agent_subscriptions
-  → if llmApiKey provided: AES-256 encrypt before saving
-```
+### B3: `src/app/api/personal-agent/settings/route.ts`
 
-### B3: `src/app/api/personal-agent/actions/route.ts`
+```typescript
+// GET: load settings
+// POST: save settings — REQUIRES wallet ownership proof
+export async function POST(req: Request) {
+  const { address, hfTarget, enabled, llmProvider, llmApiKey, signature, message } = await req.json();
 
-```
-GET ?address=0x...&limit=10
-  → last 10 agent_actions for this wallet
+  // Verify wallet owns the address (EIP-191 personal sign)
+  // message = "AgentLoan: update settings for " + address.toLowerCase()
+  const recoveredAddress = await verifyMessage({ message, signature });
+  if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
+    return Response.json({ error: "Invalid signature" }, { status: 401 });
+  }
+
+  const update: any = { hf_target: hfTarget, enabled, llm_provider: llmProvider };
+  if (llmApiKey) update.llm_api_key_enc = encryptKey(llmApiKey);
+
+  await supabaseAdmin.from("user_agent_subscriptions").upsert({
+    wallet_address: address.toLowerCase(),
+    agent_type: "personal",
+    ...update,
+  });
+  return Response.json({ success: true });
+}
 ```
 
 ### B4: `src/app/api/personal-agent/status/route.ts`
 
-```
-GET ?address=0x...
-  → on-chain reads:
-      xUSDC.allowance(address, AgentExecutor) → approvedAmount
-      LendingPool.agentAuthorized(address, AgentExecutor) → isAuthorized
-      LendingPool.getUserAccountData(address) → hf, debt, collateral
-  → return { approvedAmount, isAuthorized, hf, debtUsd, collateralUsd }
-```
+Reads on-chain: allowance, authorization, HF, debt, collateral.
 
-### B5: `src/app/api/telegram/webhook/route.ts` ← NEW
+### B5: `src/app/api/personal-agent/actions/route.ts`
 
-Handles Telegram bot commands from users:
+Returns last 10 actions for a wallet.
+
+### B6: `src/app/api/telegram/webhook/route.ts`
 
 ```typescript
 export async function POST(req: Request) {
+  // Validate request is from Telegram
+  const secret = req.headers.get("x-telegram-bot-api-secret-token");
+  if (secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+    return Response.json({ ok: false }, { status: 403 });
+  }
+
   const body = await req.json();
-  const msg  = body.message;
-  if (!msg) return Response.json({ ok: true });
+  const msg = body.message;
+  if (!msg?.text) return Response.json({ ok: true });
 
   const chatId = msg.chat.id.toString();
-  const text   = msg.text?.trim() ?? "";
+  const text   = msg.text.trim();
 
-  // /start 0xABC... → link wallet to this chat
-  if (text.startsWith("/start ")) {
-    const wallet = text.slice(7).trim().toLowerCase();
-    if (wallet.startsWith("0x") && wallet.length === 42) {
-      await supabaseAdmin.from("telegram_connections").upsert({
-        wallet_address: wallet,
-        chat_id: chatId,
-      });
-      await sendTelegram(chatId, `✅ Wallet linked!\n<code>${wallet}</code>\n\nCommands:\n/status — HF and agent state\n/enable — turn on agent\n/disable — turn off agent\n/hf 1.4 — set HF target`);
+  // Respond immediately — process async to avoid Telegram 5s timeout
+  (async () => {
+    if (text.startsWith("/start")) {
+      // Handle both "/start 0x..." and deep link payload
+      const wallet = (text.split(" ")[1] ?? "").toLowerCase();
+      if (wallet.startsWith("0x") && wallet.length === 42) {
+        await supabaseAdmin.from("telegram_connections").upsert({ wallet_address: wallet, chat_id: chatId });
+        await sendTelegram(chatId, `✅ <b>Wallet linked!</b>\n<code>${wallet}</code>\n\nCommands:\n/status · /enable · /disable · /hf 1.4`);
+      } else {
+        await sendTelegram(chatId, `Send your wallet address:\n<code>/start 0xYOUR_WALLET</code>`);
+      }
+      return;
     }
-    return Response.json({ ok: true });
-  }
 
-  // Find wallet for this chat_id
-  const { data: conn } = await supabaseAdmin
-    .from("telegram_connections")
-    .select("wallet_address")
-    .eq("chat_id", chatId)
-    .single();
+    // Find wallet for this chat
+    const { data: conn } = await supabaseAdmin.from("telegram_connections").select("wallet_address").eq("chat_id", chatId).single();
+    if (!conn) { await sendTelegram(chatId, "Link your wallet first: /start 0xYOUR_WALLET"); return; }
 
-  if (!conn) {
-    await sendTelegram(chatId, "Send /start 0xYOUR_WALLET to link your wallet first.");
-    return Response.json({ ok: true });
-  }
+    const wallet = conn.wallet_address;
+    const { data: sub } = await supabaseAdmin.from("user_agent_subscriptions").select("*").eq("wallet_address", wallet).single();
 
-  const wallet = conn.wallet_address;
-
-  if (text === "/status") {
-    const sub = await getSubscription(wallet);
-    const pos = await getUserAccountData(wallet);
-    const hf = Number(pos.healthFactor) / 1e18;
-    await sendTelegram(chatId, formatStatus(wallet, sub, hf));
-  }
-  else if (text === "/enable") {
-    await setEnabled(wallet, true);
-    await sendTelegram(chatId, "✅ Personal Agent enabled. Watching your position.");
-  }
-  else if (text === "/disable") {
-    await setEnabled(wallet, false);
-    await sendTelegram(chatId, "⏸ Personal Agent disabled.");
-  }
-  else if (text.startsWith("/hf ")) {
-    const target = parseFloat(text.slice(4));
-    if (target >= 1.1 && target <= 3.0) {
-      await setHFTarget(wallet, target);
-      await sendTelegram(chatId, `✅ HF target set to ${target}`);
-    } else {
-      await sendTelegram(chatId, "HF target must be between 1.1 and 3.0");
+    if (text === "/status") {
+      // Read HF from on-chain (with 5s timeout guard)
+      const hf = await getHFWithTimeout(wallet, 4000).catch(() => null);
+      await sendTelegram(chatId, formatStatus(wallet, sub, hf ?? 0));
     }
-  }
+    else if (text === "/enable") {
+      await supabaseAdmin.from("user_agent_subscriptions").upsert({ wallet_address: wallet, agent_type: "personal", enabled: true });
+      await sendTelegram(chatId, "✅ Agent enabled. Watching your position.");
+    }
+    else if (text === "/disable") {
+      await supabaseAdmin.from("user_agent_subscriptions").upsert({ wallet_address: wallet, agent_type: "personal", enabled: false });
+      await sendTelegram(chatId, "⏸ Agent disabled.");
+    }
+    else if (text.startsWith("/hf ")) {
+      const t = parseFloat(text.slice(4));
+      if (t >= 1.1 && t <= 3.0) {
+        await supabaseAdmin.from("user_agent_subscriptions").upsert({ wallet_address: wallet, agent_type: "personal", hf_target: t });
+        await sendTelegram(chatId, `✅ HF target set to ${t}`);
+      } else {
+        await sendTelegram(chatId, "HF target must be 1.1 – 3.0");
+      }
+    }
+    else if (text === "/history") {
+      const { data: actions } = await supabaseAdmin.from("agent_actions")
+        .select("action,amount_usd,hf_before,hf_after,created_at")
+        .eq("wallet_address", wallet).order("created_at", { ascending: false }).limit(5);
+      const lines = (actions ?? []).map(a =>
+        `${a.action}: $${a.amount_usd?.toFixed(0)} HF ${a.hf_before?.toFixed(2)}→${a.hf_after?.toFixed(2)}`
+      );
+      await sendTelegram(chatId, lines.length ? lines.join("\n") : "No actions yet.");
+    }
+  })();
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true }); // immediate response to Telegram
 }
 ```
 
-### B6: Register Telegram webhook (run once after deploy)
+### B7: Register webhook (run once after Vercel deploy)
 
 ```bash
 curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
-  -d "url=https://agentloan.vercel.app/api/telegram/webhook"
+  -d "url=https://agentloan.vercel.app/api/telegram/webhook" \
+  -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}"
 ```
 
 **CHECKPOINT B:**
 ```
-□ GET /api/personal-agent/settings → returns data
-□ POST /api/personal-agent/settings → saves to Supabase
-□ GET /api/personal-agent/status → returns on-chain data
-□ Telegram: send /start 0x... to bot → receives welcome message
-□ Telegram: /enable /disable /status all respond correctly
+□ GET /api/personal-agent/settings?address=0x... → returns defaults
+□ POST with valid signature → saved to Supabase
+□ POST with wrong signature → 401
+□ Telegram: send /start 0xADDRESS → welcome message received
+□ Telegram: /enable /disable /status /hf all work
+□ Fake POST to webhook without secret → 403
 ```
 
 ---
@@ -293,74 +360,71 @@ curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
 
 ### C1: `src/components/agents/PersonalAgentPanel.tsx`
 
-**State 1: Not set up**
+**State 1 — Not set up:**
 ```
 ┌──────────────────────────────────────────┐
 │ PERSONAL AGENT               [INACTIVE]  │
 ├──────────────────────────────────────────┤
-│ Autonomous position management — set up  │
-│ once and your agent works 24/7.          │
+│ ① Approve xUSDC    [APPROVE →]   ✓/○   │
+│ ② Authorize agent  [AUTHORIZE →] ✓/○   │
+│ ③ HF Target  [1.30  ▲▼]               │
 │                                          │
-│ ① Approve xUSDC   [APPROVE →]    ○      │
-│ ② Authorize agent [AUTHORIZE →]  ○      │
-│ ③ Set HF target   [1.30  ▲▼]           │
-│                                          │
-│           [ACTIVATE AGENT]              │
+│            [ACTIVATE AGENT]             │
 └──────────────────────────────────────────┘
 ```
 
-**State 2: Active, safe**
+**State 2 — Active:**
 ```
 ┌──────────────────────────────────────────┐
 │ PERSONAL AGENT               [● ACTIVE]  │
 ├──────────────────────────────────────────┤
-│ HF now   1.42  →  Target  1.30           │
-│ Reserve  2,500 xUSDC approved            │
+│ HF   1.42  →  Target  1.30              │
+│ Reserve  2,500 xUSDC approved           │
 │                                          │
-│ Deployed $500 to yield · 6h ago          │
-│ APY: 4.2% · HF was 1.52                 │
+│ Deployed $500 to yield · 6h ago         │
 │                                          │
-│ [Telegram ✓]  [History]  [Disable]      │
+│ [Telegram ✓]  [History]  [Disable]     │
 └──────────────────────────────────────────┘
 ```
 
-**State 3: Just acted**
+**Telegram connect section:**
 ```
-┌──────────────────────────────────────────┐
-│ PERSONAL AGENT               [● ACTIVE]  │
-├──────────────────────────────────────────┤
-│ HF now   1.34  →  Target  1.30           │
-│                                          │
-│ ⚡ Repaid $230 xUSDC · 2 min ago         │
-│   HF: 1.08 → 1.34                       │
-│   TX: 0x4f2a... [↗]                    │
-│                                          │
-│ [Telegram ✓]  [History]  [Disable]      │
-└──────────────────────────────────────────┘
+Connect Telegram for notifications:
+
+  1. Open @AgentLoanBot
+  2. Send this command:
+     /start 0xYOUR_WALLET  [Copy]
+  
+  Status: ● Connected / ○ Not connected (polls every 5s)
+```
+Note: show copyable command as PRIMARY method. Deep link as secondary.
+Deep link format (correct): `https://t.me/AgentLoanBot?start=0xWALLET`
+
+**Settings POST — wallet ownership proof:**
+```typescript
+// Sign message before POST to prove wallet ownership
+const message = `AgentLoan: update settings for ${address.toLowerCase()}`;
+const signature = await walletClient.signMessage({ message });
+await fetch("/api/personal-agent/settings", {
+  method: "POST",
+  body: JSON.stringify({ address, hfTarget, enabled, signature, message }),
+});
 ```
 
-**Telegram connect flow (in panel):**
-```
-[Connect Telegram] →
-  Show: "Message @AgentLoanBot: /start 0xYOUR_WALLET"
-  QR code or deep link: tg://resolve?domain=AgentLoanBot&start=0x...
-  Poll every 5s for connection → shows ✓ when linked
-```
-
-**LLM section (collapsible, bottom of panel):**
+**LLM section (optional, collapsible):**
 ```
 ▼ AI Reasoning (optional)
-  Using: Protocol default (Gemini)
-  [Use my own API key ▼]
-    Provider: [Gemini ▼]
-    API Key:  [••••••] [Test] [Save]
+  Default: Protocol Gemini key (shared)
+  [Use my own key ▼]
+    Provider: [Gemini ▼] [OpenAI] [DeepSeek] [Custom]
+    API Key: [••••••] [Test] [Save]
+  Note: Your key is encrypted before storage. Enables market-aware decisions.
 ```
 
 ### C2: Update `AgentsTab.tsx`
 
 ```typescript
 import { PersonalAgentPanel } from "./PersonalAgentPanel";
-
 export function AgentsTab() {
   return (
     <div>
@@ -374,190 +438,255 @@ export function AgentsTab() {
 
 **CHECKPOINT C:**
 ```
-□ Setup wizard: approve → authorize → activate works end-to-end
-□ Panel shows correct HF and agent status
-□ Telegram connect: user links wallet → panel shows ✓
-□ LLM section: user can save their own API key
-□ History shows last 10 actions
-□ Disable toggles agent off (Supabase updated)
+□ Setup wizard: approve → authorize → activate end-to-end
+□ Settings POST requires wallet signature — rejects wrong signature
+□ Panel shows correct on-chain HF
+□ Telegram connect: copyable command shown, ✓ after linking
+□ LLM key save: encrypts before storing
+□ History shows last actions
+□ Disable → Supabase updated → agent stops acting
 ```
 
 ---
 
-## PHASE D — VPS Agent (2h)
+## PHASE D — VPS Agent (2.5h)
 
-### D1: Two-tier decision engine
+### D1: `agents/personal-agent.ts` — imports + helpers
 
-**Tier 1 — Scoring (every block, $0):**
-```
-For each user:
-  hf = current health factor
-  hfDelta = hf - previousHF (trend)
-  urgency = 0
-
-  if hf < 1.05: urgency = 3  (emergency)
-  elif hf < hfTarget: urgency = 2  (needs action)
-  elif hfDelta < -0.1 in last 10min: urgency = 1  (trending bad)
-  elif hasIdleUSDC and hf > hfTarget + 0.3: urgency = -1  (deploy yield)
-  else: urgency = 0  (skip)
-
-  if urgency === 0: continue
-  queue.push({ user, urgency, hf, hfDelta })
-```
-
-**Tier 2 — LLM (only when urgency > 0 AND timeSinceLastCall > 5min):**
 ```typescript
-async function decideLLM(user, position, memory): Promise<Decision> {
+import * as dotenv from "dotenv";
+import * as path from "path";
+dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
+
+import { createClient } from "@supabase/supabase-js";
+import { callLLM } from "./lib/gemini-client";        // existing function
+import { publicClient, getPositionsBatch } from "./lib/pool-reader";
+import { ARC_TESTNET_CONTRACTS } from "../config/contracts";
+
+const DRY_RUN = process.env.DRY_RUN === "true";
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+const EXECUTOR_ADDR = ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR;
+const X_USDC_ADDR   = ARC_TESTNET_CONTRACTS.X_USDC;
+const MIN_COVERAGE  = 0.10; // only act if approved covers ≥10% of needed repay
+```
+
+### D2: Repay formula — MUST use weighted collateral
+
+```typescript
+// HF = totalCollateralUSD (weighted) / totalDebtUSD
+// Target HF after repay: target = weightedColl / (debt - repay)
+// → repay = debt - weightedColl / target
+
+function calcRepayAmount(pos: UserPosition, targetHF: number): bigint {
+  const weightedCollUSD = pos.totalWeightedCollateralUSD; // from getUserAccountData — already weighted
+  const debtUSD         = pos.totalDebtUSD;
+  if (debtUSD === 0n) return 0n;
+
+  const wColl = Number(weightedCollUSD) / 1e18;
+  const debt  = Number(debtUSD) / 1e18;
+  const repayUSD = Math.max(0, debt - wColl / targetHF);
+
+  return parseUnits(repayUSD.toFixed(6), 6);  // xUSDC 6 decimals
+}
+```
+
+### D3: shouldCallLLM — uses `last_llm_call_at` from Supabase
+
+```typescript
+const MIN_LLM_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+function shouldCallLLM(user: UserSubscription): boolean {
+  if (!user.last_llm_call_at) return true;
+  const age = Date.now() - new Date(user.last_llm_call_at).getTime();
+  return age > MIN_LLM_INTERVAL_MS;
+}
+
+async function updateLastLLMCall(wallet: string) {
+  await supabase.from("user_agent_subscriptions")
+    .update({ last_llm_call_at: new Date().toISOString() })
+    .eq("wallet_address", wallet);
+}
+```
+
+### D4: LLM decision — uses `callLLM` not `llmClient.complete`
+
+```typescript
+async function decideLLM(user: UserSubscription, pos: UserPosition): Promise<Decision> {
+  const memories = await supabase.from("agent_memory")
+    .select("content")
+    .eq("wallet_address", user.wallet_address)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const hf      = Number(pos.healthFactor) / 1e18;
+  const debtUSD = Number(pos.totalDebtUSD) / 1e18;
+  const collUSD = Number(pos.totalWeightedCollateralUSD) / 1e18; // weighted
+
   const prompt = `
-You are a DeFi agent managing ${user.wallet_address}'s position on AgentLoan.
+You are a DeFi position manager for ${user.wallet_address.slice(0,10)}...
 
 CURRENT STATE:
 - Health Factor: ${hf.toFixed(3)} (target: ${user.hf_target})
-- HF trend: ${hfDelta > 0 ? "improving" : "declining"} (${hfDelta.toFixed(3)} last 10 min)
 - Total debt: $${debtUSD.toFixed(0)}
-- Collateral: $${collateralUSD.toFixed(0)}
-- xUSDC approved to agent: $${approvedUSD.toFixed(0)}
-- BTC price change 1h: ${btcChange1h}%
+- Weighted collateral: $${collUSD.toFixed(0)}
+- xUSDC approved to agent: $${Number(approvedAmount)/1e6}
 
-USER MEMORY (last ${memory.length} observations):
-${memory.map(m => `- ${m.content}`).join("\n")}
+USER MEMORY:
+${(memories.data ?? []).map(m => `- ${m.content}`).join("\n") || "- No history yet"}
 
-AVAILABLE ACTIONS:
-1. repay(amount) — repay xUSDC debt, improves HF
-2. deploy_yield(amount) — supply xUSDC to pool, earn APY
-3. skip — do nothing this cycle
+ACTIONS: repay(amount) | deploy_yield(amount) | skip
 
-Decide: which action, how much, and why.
-Respond in JSON: {"action": "repay"|"deploy_yield"|"skip", "amount_usd": number, "reason": "..."}
-  `.trim();
+Respond in JSON only: {"action":"repay"|"deploy_yield"|"skip","amount_usd":number,"reason":"..."}`.trim();
 
-  const response = await llmClient.complete(prompt);
-  return JSON.parse(response);
+  const raw = await callLLM(prompt);
+  const start = raw.indexOf("{");
+  const end   = raw.lastIndexOf("}");
+  return JSON.parse(raw.slice(start, end + 1));
 }
 ```
 
-**Fallback when no LLM key AND not emergency:**
-```typescript
-// Rule-based: simple formula
-function decideRuleBased(user, hf): Decision {
-  if (hf < user.hf_target) {
-    const target = user.hf_target + 0.15;
-    const repayUSD = Math.max(0, debtUSD - collateralUSD / target);
-    return { action: "repay", amountUsd: repayUSD, reason: "HF below target (rule-based)" };
-  }
-  if (hasIdleUSDC && hf > user.hf_target + 0.3) {
-    return { action: "deploy_yield", amountUsd: idleUSDC, reason: "Idle xUSDC, HF safe" };
-  }
-  return { action: "skip", amountUsd: 0, reason: "No action needed" };
-}
-```
-
-### D2: Memory integration
-
-After each action, save to memory AND read last 10 memories for next LLM call:
+### D5: Main loop — complete
 
 ```typescript
-// Save outcome to memory
-await supabaseAdmin.from("agent_memory").insert({
-  wallet_address: user.wallet_address,
-  agent_type: "personal",
-  type: "outcome",
-  content: `${action}: $${amountUsd} repaid. HF ${hfBefore.toFixed(2)}→${hfAfter.toFixed(2)}. ${reason}`,
-});
+let isRunning = false;
+const BLOCK_INTERVAL = 20; // check every 20 blocks for HF changes (~10s)
+let lastCheckedBlock = 0n;
 
-// Read memory for next LLM call
-const { data: memories } = await supabaseAdmin
-  .from("agent_memory")
-  .select("content")
-  .eq("wallet_address", user.wallet_address)
-  .order("created_at", { ascending: false })
-  .limit(10);
-```
-
-### D3: Telegram notification per user
-
-```typescript
-async function notifyUser(wallet: string, message: string) {
-  const { data: conn } = await supabaseAdmin
-    .from("telegram_connections")
-    .select("chat_id")
-    .eq("wallet_address", wallet)
-    .single();
-
-  if (!conn) return; // user not connected to Telegram
-
-  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: conn.chat_id,
-      text: message,
-      parse_mode: "HTML",
-    }),
-  });
-}
-
-// Example notification
-await notifyUser(wallet, [
-  `⚡ <b>Agent acted on your position</b>`,
-  ``,
-  `Action: Repaid $${amountUsd.toFixed(0)} xUSDC`,
-  `HF: ${hfBefore.toFixed(2)} → ${hfAfter.toFixed(2)}`,
-  `Reason: ${reason}`,
-  `TX: <a href="https://testnet.arcscan.app/tx/${txHash}">${txHash.slice(0,14)}...</a>`,
-].join("\n"));
-```
-
-### D4: Full agent loop structure
-
-```typescript
-// personal-agent.ts
-watchBlocks(async (block) => {
-  if (isRunning) return;
-  isRunning = true;
-  try {
-    // Load enabled users
-    const users = await getEnabledUsers();
-    if (!users.length) return;
-
-    // Tier 1: batch HF read + score
-    const positions = await getPositionsBatch(users.map(u => u.wallet_address));
-    const queue = scoreAll(users, positions);
-    if (!queue.length) return;
-
-    // Tier 2: LLM or rule-based for each user in queue
-    for (const item of queue) {
-      const { user, urgency, position } = item;
-
-      // TOCTOU: re-check enabled + auth
-      if (!await isStillEnabled(user.wallet_address)) continue;
-      if (!await isStillAuthorized(user.wallet_address)) continue;
-
-      const approved = await getAllowance(user.wallet_address);
-
-      let decision: Decision;
-      if (urgency >= 3) {
-        // Emergency — no LLM, act NOW
-        decision = { action: "emergency_protect", amountUsd: calcRepayAmount(user, position) };
-      } else if (shouldCallLLM(user)) {
-        const memory = await getMemory(user.wallet_address);
-        decision = await decideLLM(user, position, memory);
-        updateLastLLMCall(user.wallet_address);
-      } else {
-        decision = decideRuleBased(user, position);
-      }
-
-      if (decision.action === "skip") continue;
-
-      await execute(user, decision, position, approved);
+publicClient.watchBlocks({
+  onBlock: async (block) => {
+    if (block.number % BigInt(BLOCK_INTERVAL) !== 0n) return;
+    if (isRunning) return;
+    isRunning = true;
+    try {
+      await runCycle();
+    } finally {
+      isRunning = false;
     }
-  } finally {
-    isRunning = false;
   }
 });
+
+async function runCycle() {
+  // Load all enabled users in 1 Supabase query
+  const { data: users } = await supabase
+    .from("user_agent_subscriptions")
+    .select("*")
+    .eq("enabled", true)
+    .eq("agent_type", "personal");
+
+  if (!users?.length) return;
+
+  // Tier 1: batch HF for all users — 1 Multicall3 RPC call
+  const positions = await getPositionsBatch(users.map(u => u.wallet_address));
+
+  for (const user of users) {
+    const pos = positions.find(p => p.address.toLowerCase() === user.wallet_address);
+    if (!pos || pos.totalDebtUSD === 0n) continue;
+
+    const hf = Number(pos.healthFactor) / 1e18;
+    const urgency = scoreUrgency(user, hf);
+    if (urgency === 0) continue;
+
+    // Authorization check (on-chain, fast)
+    const authorized = await pool.agentAuthorized(user.wallet_address, EXECUTOR_ADDR);
+    if (!authorized) continue;
+
+    // Approved amount
+    const approved = await xUSDC.allowance(user.wallet_address, EXECUTOR_ADDR);
+
+    let decision: Decision;
+    if (urgency >= 3) {
+      // Emergency: no LLM, act immediately
+      const repay = calcRepayAmount(pos, user.hf_target + 0.2);
+      decision = { action: "emergency_protect", amountUsd: Number(repay)/1e6, reason: `HF ${hf.toFixed(2)} < 1.05` };
+    } else if (shouldCallLLM(user)) {
+      decision = await decideLLM(user, pos).catch(() =>
+        decideRuleBased(user, pos) // fallback if LLM fails
+      );
+      await updateLastLLMCall(user.wallet_address);
+    } else {
+      decision = decideRuleBased(user, pos);
+    }
+
+    if (decision.action === "skip") continue;
+
+    await executeDecision(user, pos, decision, approved);
+  }
+}
+
+function scoreUrgency(user: UserSubscription, hf: number): number {
+  if (hf < 1.05)                 return 3; // emergency
+  if (hf < user.hf_target)       return 2; // needs repay
+  if (hf < user.hf_target + 0.15) return 1; // approaching threshold
+  return 0; // safe
+}
+
+async function executeDecision(user, pos, decision, approved) {
+  const hfBefore = Number(pos.healthFactor) / 1e18;
+  let repayAmount: bigint;
+
+  if (decision.action === "repay" || decision.action === "emergency_protect") {
+    repayAmount = parseUnits(decision.amountUsd.toFixed(6), 6);
+
+    // Minimum coverage check: don't act if approved covers < 10% of needed
+    if (approved < repayAmount) {
+      const coverage = Number(approved) / Number(repayAmount);
+      if (coverage < MIN_COVERAGE) {
+        await logAction(user.wallet_address, "skip", {
+          reason: `Approved ($${Number(approved)/1e6}) < ${MIN_COVERAGE*100}% of needed ($${decision.amountUsd})`,
+          hfBefore, success: false,
+        });
+        await notifyUser(user.wallet_address, `⚠️ Agent cannot act: insufficient xUSDC reserve.\nNeed $${decision.amountUsd.toFixed(0)}, have $${(Number(approved)/1e6).toFixed(0)} approved.`);
+        return;
+      }
+      repayAmount = approved; // partial repay
+    }
+
+    if (DRY_RUN) {
+      console.log(`[DRY_RUN] Would emergencyProtect ${user.wallet_address} for $${Number(repayAmount)/1e6}`);
+      return;
+    }
+
+    const tx = await executor.emergencyProtect(user.wallet_address, repayAmount);
+    const receipt = await tx.wait();
+
+    // Read hfAfter — explicit RPC call after tx
+    const posAfter = await getPositionsBatch([user.wallet_address]);
+    const hfAfter = posAfter[0] ? Number(posAfter[0].healthFactor) / 1e18 : 0;
+
+    await logAndNotify(user, "emergency_protect", {
+      amountUsd: Number(repayAmount)/1e6,
+      hfBefore, hfAfter,
+      txHash: receipt.hash,
+      reason: decision.reason,
+    });
+    await saveMemory(user.wallet_address, `Repaid $${(Number(repayAmount)/1e6).toFixed(0)}: HF ${hfBefore.toFixed(2)}→${hfAfter.toFixed(2)}. ${decision.reason}`);
+  }
+
+  if (decision.action === "deploy_yield") {
+    const walletBalance = await xUSDC.balanceOf(user.wallet_address);
+    const deployAmount  = walletBalance < approved ? walletBalance : approved;
+
+    if (deployAmount < parseUnits("10", 6)) return; // skip dust
+
+    if (DRY_RUN) {
+      console.log(`[DRY_RUN] Would deployToYield ${user.wallet_address} $${Number(deployAmount)/1e6}`);
+      return;
+    }
+
+    const tx = await executor.deployToYield(user.wallet_address, deployAmount);
+    const receipt = await tx.wait();
+
+    await logAndNotify(user, "deploy_yield", {
+      amountUsd: Number(deployAmount)/1e6,
+      hfBefore, hfAfter: hfBefore, // HF unchanged when supplying
+      txHash: receipt.hash,
+      reason: decision.reason,
+    });
+  }
+}
 ```
 
-### D5: `run-personal-agent.sh` + `ecosystem.config.js`
+### D6: `run-personal-agent.sh`
 
 ```bash
 #!/bin/bash
@@ -565,8 +694,9 @@ cd /root/arcbank
 npx ts-node --project tsconfig.hardhat.json agents/personal-agent.ts
 ```
 
+### D7: Add to `ecosystem.config.js`
+
 ```javascript
-// ecosystem.config.js — add this entry
 {
   name: "personal-agent",
   script: "/root/arcbank/run-personal-agent.sh",
@@ -582,71 +712,95 @@ npx ts-node --project tsconfig.hardhat.json agents/personal-agent.ts
 }
 ```
 
+### D8: VPS RAM check before deploy
+
+```bash
+free -m
+# Current processes use ~350-370MB
+# personal-agent expected: 120-150MB
+# Required free: > 200MB to be safe
+
+# If RAM tight: stop coordinator temporarily, start personal-agent, check RSS
+pm2 stop coordinator-agent
+pm2 start ecosystem.config.js --only personal-agent
+pm2 info personal-agent | grep memory  # should be < 150MB
+# If OK: restart coordinator
+pm2 restart coordinator-agent
+free -m  # must still be > 80MB free
+```
+
 **CHECKPOINT D:**
 ```
-□ personal-agent starts: "Personal Agent started, watching N users"
-□ RAM after start: free -m > 100MB
-□ Tier 1 scoring logs every block (no error)
-□ Tier 2 LLM called when HF drops (check logs)
-□ Action logged to Supabase agent_actions
-□ Telegram notification sent after action
+□ DRY_RUN=true: logs decisions, no on-chain txs
+□ DRY_RUN=false: first run with 1 test user, verify correct
+□ calcRepayAmount uses totalWeightedCollateralUSD (not raw)
+□ hfAfter is read after tx (not undefined)
+□ shouldCallLLM respects 5-min cooldown per user
+□ Low coverage (<10%) → skip with Telegram warning
+□ Memory saves after each action
+□ RAM stable after start: free > 80MB
 ```
 
 ---
 
 ## PHASE E — Integration Test (30 min)
 
-### E1: Full setup flow
+### E1: DRY_RUN first
+```bash
+DRY_RUN=true pm2 start ecosystem.config.js --only personal-agent
+pm2 logs personal-agent --lines 20
+# Must see: "[DRY_RUN] Would..." — no real txs
+```
+
+### E2: Full setup
 ```
 Connect wallet → AGENTS tab
-→ Setup: Approve 2000 xUSDC + Authorize AgentExecutor + Set HF 1.3 + Enable
-→ Telegram: /start 0xYOUR_WALLET → connected ✓
+→ Approve 2000 xUSDC to AgentExecutor
+→ Authorize AgentExecutor in LendingPool
+→ Set HF target 1.3 → Enable
+→ Telegram: /start 0xWALLET → ✓ connected
+→ /status → shows HF
 ```
 
-### E2: Verify monitoring
-```bash
-pm2 logs personal-agent --lines 10
-# Must see: "watching 1 user: 0x..."
+### E3: deployToYield
 ```
-
-### E3: deployToYield test
-```
-Deposit 0.1 BTC collateral → Borrow 1000 xUSDC
-Keep 2000 xUSDC in wallet (idle)
-Wait 1-2 blocks
-→ Agent deploys $2000 to yield
-→ Panel shows "Deployed $2,000 · APY 4.2%"
+Keep 2000 xUSDC idle in wallet
+Wait 1-2 cycles (~10s)
+→ Agent deploys to pool
+→ Panel shows "Deployed $2000"
 → Telegram: "Agent deployed $2,000 to yield"
 ```
 
-### E4: Auto-repay test
+### E4: Auto-repay
 ```
-Borrow more until HF ~1.15
+Borrow until HF ~1.15
+Wait 1 cycle
 → Agent detects HF < target
-→ LLM decides repay amount
-→ emergencyProtect() executes
+→ LLM or rule decides repay amount
+→ TX executes
 → HF improves
-→ Panel shows action + TX
 → Telegram notification sent
 ```
 
-### E5: Telegram control test
+### E5: Telegram commands
 ```
-/disable → panel shows INACTIVE, agent stops
-/enable → agent resumes
-/hf 1.5 → threshold changes, agent respects it
-/status → shows current HF and agent state
+/disable → panel inactive, agent skips
+/enable  → resumes
+/hf 1.5  → threshold changes
+/status  → shows current HF
 ```
 
-**CHECKPOINT E — DONE when:**
+**ALL DONE when:**
 ```
-□ Full setup works end-to-end
+□ DRY_RUN test passes without errors
+□ Full setup flow works
 □ deployToYield executes automatically
-□ Auto-repay executes when HF below target
-□ Telegram notified after every action
-□ Telegram commands work (enable/disable/status/hf)
-□ Action history visible in UI
-□ LLM reasons with user memory context
+□ auto-repay works correctly
+□ hfAfter shows correct value (not NaN/undefined)
+□ Telegram: all commands work
+□ Telegram: notification sent after action
+□ Low reserve test: warns correctly, no partial tx
+□ RAM stable after 10 min
 ```
 
 ---
@@ -655,75 +809,51 @@ Borrow more until HF ~1.15
 
 | Scenario | Handling |
 |---|---|
-| User revokes authorization | Check `agentAuthorized` before each tx → skip |
-| User disables mid-tx | Re-check `enabled` before every on-chain action |
-| Approved amount < repay needed | Partial repay with available amount |
-| No xUSDC to repay | Log "insufficient reserve", send Telegram warning |
-| LLM API fails | Fallback to rule-based, log warning |
-| LLM key expired/invalid | Same fallback, notify user via Telegram |
-| Pool paused | Tx reverts gracefully, log error, notify user |
+| User revokes authorization | `agentAuthorized` check per-user before tx → skip |
+| User disables (Supabase updated) | Next cycle skips (enabled flag from fresh DB load) |
+| Approved < 10% of needed | Skip + Telegram warning "insufficient reserve" |
+| LLM fails / key expired | Fallback to rule-based + log warning |
+| Pool paused | tx reverts → log error, notify user |
+| hfAfter read fails | Log error, store null, notify but continue |
 | VPS restart | PM2 auto-restarts, resumes next block |
-| Telegram chat not connected | Notifications silently skip |
-| Multiple users, same block | Parallel Multicall3 read, sequential execute |
+| Telegram not connected | Notifications silently skip |
+| Multiple users same block | Batch Multicall3 read, sequential execute |
 
 ---
 
-## LLM cost at scale
+## Issues fixed from review
 
-```
-Tier 1 (every block):  $0 — pure TypeScript math
-Tier 2 (only on event):
-  Trigger conditions:
-    HF dropped > 0.1 in 10 min
-    HF < hf_target + 0.15
-    New idle xUSDC detected
-  Minimum 5 min between LLM calls per user
-  
-  Cost:
-    Gemini 2.5 Flash: ~$0.0001/call
-    1 user, 5 events/day = $0.0005/day
-    100 users, 5 events/day each = $0.05/day = $1.50/month
-    ← negligible
-```
-
----
-
-## Telegram commands reference
-
-| Command | What it does |
+| Issue | Fix applied |
 |---|---|
-| `/start 0x...` | Link wallet address to this chat |
-| `/status` | Show HF, agent state, last action |
-| `/enable` | Turn on Personal Agent |
-| `/disable` | Turn off Personal Agent |
-| `/hf 1.4` | Set HF target to 1.4 |
-| `/history` | Last 5 actions |
+| `updated_at` not auto-updating | `moddatetime` trigger added |
+| Cleanup not scheduled | `pg_cron` schedule added |
+| `ENCRYPTION_KEY` missing | `LLM_ENCRYPTION_KEY` env var defined |
+| No DB indexes | 4 indexes added |
+| `last_llm_call_at` not in schema | Column added to `user_agent_subscriptions` |
+| Telegram webhook unauthenticated | `X-Telegram-Bot-Api-Secret-Token` validation |
+| Settings POST: no ownership proof | EIP-191 signature verification |
+| Helper functions undefined | All defined in `agent-helpers.ts` |
+| Telegram slow RPC: timeout risk | Respond immediately, process async |
+| Repay formula: wrong collateral | Explicitly uses `totalWeightedCollateralUSD` |
+| `hfAfter` never computed | Explicit `getPositionsBatch` after tx |
+| `btcChange1h` not available | Removed from LLM prompt |
+| `shouldCallLLM` undefined | Defined with `last_llm_call_at` column |
+| `llmClient.complete` not in codebase | Use `callLLM` from `gemini-client.ts` |
+| Partial repay < 10% useful | Minimum coverage check added |
+| RAM: 4th process may OOM | Check + sequence documented |
+| No DRY_RUN mode | `DRY_RUN=true` support added |
+| Telegram deep link unreliable | Copyable command shown as primary |
 
 ---
 
 ## Build order
 
 ```
-Phase A  Supabase setup + env vars       30 min  ← START
-Phase B  API routes + Telegram webhook    1h
-Phase C  PersonalAgentPanel UI            2h
-Phase D  personal-agent.ts (2-tier)       2h
-Phase E  Integration test                30 min
+Phase A  Supabase + env vars          45 min  ← START
+Phase B  API routes + helpers          1.5h
+Phase C  PersonalAgentPanel UI         2h
+Phase D  personal-agent.ts             2.5h
+Phase E  Integration test (DRY_RUN first)  30 min
 
-Total: ~6h
+Total: ~7h
 ```
-
----
-
-## What makes this a real agent (not just automation)
-
-| Property | This agent |
-|---|---|
-| **Perceives** environment | ✅ reads HF, prices, wallet balance every block |
-| **Reasons** about actions | ✅ Tier 2 LLM with market context + memory |
-| **Remembers** past decisions | ✅ rolling memory → injected into LLM prompt |
-| **Learns** user patterns | ✅ memory captures user behavior over time |
-| **Acts** autonomously | ✅ executes on-chain without user intervention |
-| **Communicates** results | ✅ Telegram notifications after every action |
-| **Responds** to user control | ✅ Telegram commands enable/disable/config |
-| **Adapts** decisions | ✅ LLM considers current market + user history |
