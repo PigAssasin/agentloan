@@ -11,15 +11,10 @@ async function setup() {
   const xUSDC   = await TokenFactory.deploy("Arc Testnet USD",  "xUSDC",   6);
   const xclrBTC = await TokenFactory.deploy("Arc Testnet BTC",  "xclrBTC", 8);
 
-  // Deploy price feeds
-  const AggFactory = await ethers.getContractFactory("MockAggregator");
-  const usdcFeed = await AggFactory.deploy(8, 100_000_000n);       // $1.00
-  const btcFeed  = await AggFactory.deploy(8, 60_000n * 10n**8n);  // $60,000
-
-  // Deploy oracle
-  const oracle = await (await ethers.getContractFactory("PriceOracle")).deploy();
-  await oracle.setFeed(await xUSDC.getAddress(),   await usdcFeed.getAddress());
-  await oracle.setFeed(await xclrBTC.getAddress(), await btcFeed.getAddress());
+  // Deploy mock oracle
+  const oracle = await (await ethers.getContractFactory("MockPriceOracle")).deploy();
+  await oracle.setPrice(await xUSDC.getAddress(),   ethers.parseEther("1"));      // $1.00
+  await oracle.setPrice(await xclrBTC.getAddress(), ethers.parseEther("60000")); // $60,000
 
   // Deploy interest rate strategy
   const strategy = await (await ethers.getContractFactory("InterestRateStrategy")).deploy(
@@ -49,7 +44,7 @@ async function setup() {
   await xclrBTC.ownerMint(alice.address, ethers.parseUnits("1", 8));
 
   return {
-    pool, xUSDC, xclrBTC, oracle, strategy, btcFeed, usdcFeed,
+    pool, xUSDC, xclrBTC, oracle, strategy,
     owner, alice, bob, liquidator,
     usdcAddr, btcAddr, poolAddr
   };
@@ -230,7 +225,7 @@ describe("LendingPool — liquidation", () => {
     await s.pool.connect(s.alice).borrow(s.usdcAddr, ethers.parseUnits("4000", 6));
 
     // BTC price drops to $40,000 → collateral = $4,000×0.75 = $3,000 < $4,000 debt → HF = 0.75
-    await s.btcFeed.setAnswer(40_000n * 10n ** 8n);
+    await s.oracle.setPrice(s.btcAddr, ethers.parseEther("40000"));
 
     // Fund liquidator with USDC
     await s.xUSDC.ownerMint(s.liquidator.address, ethers.parseUnits("5000", 6));

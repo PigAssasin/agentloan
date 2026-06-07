@@ -2,15 +2,14 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 
 describe("Backtest: BTC price crash scenarios", function () {
-  let pool: any, xUSDC: any, xCLRBTC: any, btcFeed: any;
+  let pool: any, xUSDC: any, xCLRBTC: any, oracle: any;
   let owner: any, alice: any, bob: any, carol: any, bot: any;
 
   beforeEach(async () => {
     [owner, alice, bob, carol, bot] = await ethers.getSigners();
 
     const ERC20    = await ethers.getContractFactory("MockERC20");
-    const Agg      = await ethers.getContractFactory("MockAggregator");
-    const Oracle   = await ethers.getContractFactory("PriceOracle");
+    const Oracle   = await ethers.getContractFactory("MockPriceOracle");
     const Strategy = await ethers.getContractFactory("InterestRateStrategy");
     const Pool     = await ethers.getContractFactory("LendingPool");
 
@@ -22,12 +21,9 @@ describe("Backtest: BTC price crash scenarios", function () {
       await xCLRBTC.ownerMint(u.address, ethers.parseUnits("2", 8));
     }
 
-    btcFeed        = await Agg.deploy(8, 60_000_00000000n); // Start $60k
-    const usdcFeed = await Agg.deploy(8, 1_00000000n);
-
-    const oracle = await Oracle.deploy();
-    await oracle.setFeed(await xCLRBTC.getAddress(), await btcFeed.getAddress());
-    await oracle.setFeed(await xUSDC.getAddress(),   await usdcFeed.getAddress());
+    oracle = await Oracle.deploy();
+    await oracle.setPrice(await xCLRBTC.getAddress(), ethers.parseEther("60000")); // Start $60k
+    await oracle.setPrice(await xUSDC.getAddress(),   ethers.parseEther("1"));
 
     const strategy = await Strategy.deploy(500n, 400n, 8000n, 14500n);
     pool = await Pool.deploy(await oracle.getAddress(), await strategy.getAddress());
@@ -58,7 +54,7 @@ describe("Backtest: BTC price crash scenarios", function () {
     // Alice: $24k debt, $48k × 75% = $36k weighted → HF = 1.5 (safe)
     // Bob:   $39k debt, $48k × 75% = $36k weighted → HF = 0.923 (liquidatable)
     // Carol: $41.4k debt, $48k × 75% = $36k weighted → HF = 0.869 (liquidatable)
-    await btcFeed.connect(owner).setAnswer(48_000_00000000n);
+    await oracle.setPrice(await xCLRBTC.getAddress(), ethers.parseEther("48000"));
     const WAD = ethers.parseUnits("1", 18);
     expect((await pool.getUserAccountData(alice.address)).healthFactor).to.be.greaterThan(WAD);
     expect((await pool.getUserAccountData(bob.address)).healthFactor).to.be.lessThan(WAD);
@@ -80,7 +76,7 @@ describe("Backtest: BTC price crash scenarios", function () {
   });
 
   it("-40% crash ($60k→$36k): Bob + Carol liquidatable, bot handles both", async () => {
-    await btcFeed.connect(owner).setAnswer(36_000_00000000n);
+    await oracle.setPrice(await xCLRBTC.getAddress(), ethers.parseEther("36000"));
     const WAD = ethers.parseUnits("1", 18);
     expect((await pool.getUserAccountData(alice.address)).healthFactor).to.be.greaterThan(WAD);
     expect((await pool.getUserAccountData(bob.address)).healthFactor).to.be.lessThan(WAD);
@@ -100,7 +96,7 @@ describe("Backtest: BTC price crash scenarios", function () {
   });
 
   it("-60% crash ($60k→$24k): all 3 positions liquidatable", async () => {
-    await btcFeed.connect(owner).setAnswer(24_000_00000000n);
+    await oracle.setPrice(await xCLRBTC.getAddress(), ethers.parseEther("24000"));
     const WAD = ethers.parseUnits("1", 18);
     // At -60%, even 40% LTV (Alice) goes under: $24k debt, collateral $24k × 75% = $18k → HF=0.75
     for (const user of [alice, bob, carol]) {

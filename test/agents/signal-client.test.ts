@@ -3,10 +3,9 @@ import { expect } from "chai";
 describe("signal-client: session state machine", function () {
   let sc: typeof import("../../agents/lib/signal-client");
 
-  beforeEach(async () => {
-    // Fresh import each test — module-level session state resets
+  beforeEach(() => {
     delete require.cache[require.resolve("../../agents/lib/signal-client")];
-    sc = await import("../../agents/lib/signal-client");
+    sc = require("../../agents/lib/signal-client");
   });
 
   it("getSessionInfo returns inactive when no session exists", () => {

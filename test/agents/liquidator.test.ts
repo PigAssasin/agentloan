@@ -2,15 +2,14 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 
 describe("Liquidator integration (local hardhat)", function () {
-  let pool: any, xUSDC: any, xCLRBTC: any, btcFeed: any;
+  let pool: any, xUSDC: any, xCLRBTC: any, oracle: any;
   let owner: any, alice: any, bot: any;
 
   beforeEach(async () => {
     [owner, alice, bot] = await ethers.getSigners();
 
     const ERC20    = await ethers.getContractFactory("MockERC20");
-    const Agg      = await ethers.getContractFactory("MockAggregator");
-    const Oracle   = await ethers.getContractFactory("PriceOracle");
+    const Oracle   = await ethers.getContractFactory("MockPriceOracle");
     const Strategy = await ethers.getContractFactory("InterestRateStrategy");
     const Pool     = await ethers.getContractFactory("LendingPool");
 
@@ -20,12 +19,9 @@ describe("Liquidator integration (local hardhat)", function () {
     await xUSDC.ownerMint(bot.address,   ethers.parseUnits("200000",  6));
     await xCLRBTC.ownerMint(alice.address, ethers.parseUnits("2", 8));
 
-    btcFeed        = await Agg.deploy(8, 100_000_00000000n);
-    const usdcFeed = await Agg.deploy(8, 1_00000000n);
-
-    const oracle = await Oracle.deploy();
-    await oracle.setFeed(await xCLRBTC.getAddress(), await btcFeed.getAddress());
-    await oracle.setFeed(await xUSDC.getAddress(),   await usdcFeed.getAddress());
+    oracle = await Oracle.deploy();
+    await oracle.setPrice(await xCLRBTC.getAddress(), ethers.parseEther("100000"));
+    await oracle.setPrice(await xUSDC.getAddress(),   ethers.parseEther("1"));
 
     const strategy = await Strategy.deploy(500n, 400n, 8000n, 14500n);
     pool = await Pool.deploy(await oracle.getAddress(), await strategy.getAddress());
@@ -48,13 +44,13 @@ describe("Liquidator integration (local hardhat)", function () {
   });
 
   it("Alice becomes liquidatable at $70k BTC (-30%)", async () => {
-    await btcFeed.connect(owner).setAnswer(70_000_00000000n);
+    await oracle.setPrice(await xCLRBTC.getAddress(), ethers.parseEther("70000"));
     const data = await pool.getUserAccountData(alice.address);
     expect(data.healthFactor).to.be.lessThan(ethers.parseUnits("1", 18));
   });
 
   it("Bot liquidates and receives BTC collateral + 5% bonus", async () => {
-    await btcFeed.connect(owner).setAnswer(70_000_00000000n);
+    await oracle.setPrice(await xCLRBTC.getAddress(), ethers.parseEther("70000"));
 
     const debt   = await pool.getUserBorrowBalance(await xUSDC.getAddress(), alice.address);
     const repay  = debt / 2n;
@@ -76,7 +72,7 @@ describe("Liquidator integration (local hardhat)", function () {
   });
 
   it("Cannot self-liquidate", async () => {
-    await btcFeed.connect(owner).setAnswer(70_000_00000000n);
+    await oracle.setPrice(await xCLRBTC.getAddress(), ethers.parseEther("70000"));
     await xCLRBTC.ownerMint(bot.address, ethers.parseUnits("1", 8));
     await xCLRBTC.connect(bot).approve(await pool.getAddress(), ethers.parseUnits("1", 8));
     await pool.connect(bot).deposit(await xCLRBTC.getAddress(), ethers.parseUnits("1", 8));

@@ -9,8 +9,7 @@ describe("pool-reader logic (local hardhat)", function () {
     [owner, alice] = await ethers.getSigners();
 
     const ERC20    = await ethers.getContractFactory("MockERC20");
-    const Agg      = await ethers.getContractFactory("MockAggregator");
-    const Oracle   = await ethers.getContractFactory("PriceOracle");
+    const Oracle   = await ethers.getContractFactory("MockPriceOracle");
     const Strategy = await ethers.getContractFactory("InterestRateStrategy");
     const Pool     = await ethers.getContractFactory("LendingPool");
 
@@ -21,13 +20,9 @@ describe("pool-reader logic (local hardhat)", function () {
     await xCLRBTC.ownerMint(owner.address, ethers.parseUnits("100",     8));
     await xCLRBTC.ownerMint(alice.address, ethers.parseUnits("2",       8));
 
-    // 2-arg constructor (decimals_, initialAnswer)
-    const btcFeed  = await Agg.deploy(8, 100_000_00000000n);
-    const usdcFeed = await Agg.deploy(8, 1_00000000n);
-
     const oracle = await Oracle.deploy();
-    await oracle.setFeed(await xCLRBTC.getAddress(), await btcFeed.getAddress());
-    await oracle.setFeed(await xUSDC.getAddress(),   await usdcFeed.getAddress());
+    await oracle.setPrice(await xCLRBTC.getAddress(), ethers.parseEther("100000"));
+    await oracle.setPrice(await xUSDC.getAddress(),   ethers.parseEther("1"));
 
     // 4-arg constructor
     const strategy = await Strategy.deploy(500n, 400n, 8000n, 14500n);

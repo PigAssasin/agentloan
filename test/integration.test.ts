@@ -13,13 +13,9 @@ describe("Integration — full user lifecycle", () => {
     const xUSDC   = await TokenFactory.deploy("Arc Testnet USD",  "xUSDC",   6);
     const xclrBTC = await TokenFactory.deploy("Arc Testnet BTC",  "xclrBTC", 8);
 
-    const AggFactory = await ethers.getContractFactory("MockAggregator");
-    const usdcFeed = await AggFactory.deploy(8, 100_000_000n);       // $1.00
-    const btcFeed  = await AggFactory.deploy(8, 60_000n * 10n**8n);  // $60,000
-
-    const oracle = await (await ethers.getContractFactory("PriceOracle")).deploy();
-    await oracle.setFeed(await xUSDC.getAddress(),   await usdcFeed.getAddress());
-    await oracle.setFeed(await xclrBTC.getAddress(), await btcFeed.getAddress());
+    const oracle = await (await ethers.getContractFactory("MockPriceOracle")).deploy();
+    await oracle.setPrice(await xUSDC.getAddress(),   ethers.parseEther("1"));
+    await oracle.setPrice(await xclrBTC.getAddress(), ethers.parseEther("60000"));
 
     const strategy = await (await ethers.getContractFactory("InterestRateStrategy")).deploy(
       RAY * 5n / 100n, RAY * 4n / 100n, RAY * 80n / 100n, RAY * 145n / 100n
@@ -67,7 +63,7 @@ describe("Integration — full user lifecycle", () => {
     expect(accountBefore.healthFactor).to.be.gte(ethers.parseEther("1.4"), "HF >= 1.4 before crash");
 
     // ── BTC price crashes from $60k to $35k ───────────────────────────
-    await btcFeed.setAnswer(35_000n * 10n**8n);
+    await oracle.setPrice(btcAddr, ethers.parseEther("35000"));
 
     // New HF = 0.1 × $35k × 0.75 / $3000 = $2625/$3000 = 0.875 < 1 → LIQUIDATABLE
     const accountAfter = await pool.getUserAccountData(alice.address);
@@ -118,13 +114,9 @@ describe("Integration — full user lifecycle", () => {
     const xUSDC   = await TokenFactory.deploy("xUSDC",   "xUSDC",   6);
     const xclrBTC = await TokenFactory.deploy("xclrBTC", "xclrBTC", 8);
 
-    const AggFactory = await ethers.getContractFactory("MockAggregator");
-    const usdcFeed = await AggFactory.deploy(8, 100_000_000n);
-    const btcFeed  = await AggFactory.deploy(8, 60_000n * 10n**8n);
-
-    const oracle = await (await ethers.getContractFactory("PriceOracle")).deploy();
-    await oracle.setFeed(await xUSDC.getAddress(),   await usdcFeed.getAddress());
-    await oracle.setFeed(await xclrBTC.getAddress(), await btcFeed.getAddress());
+    const oracle = await (await ethers.getContractFactory("MockPriceOracle")).deploy();
+    await oracle.setPrice(await xUSDC.getAddress(),   ethers.parseEther("1"));
+    await oracle.setPrice(await xclrBTC.getAddress(), ethers.parseEther("60000"));
 
     const strategy = await (await ethers.getContractFactory("InterestRateStrategy")).deploy(
       RAY * 5n / 100n, RAY * 4n / 100n, RAY * 80n / 100n, RAY * 145n / 100n

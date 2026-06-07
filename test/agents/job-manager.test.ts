@@ -5,9 +5,9 @@ describe("job-manager: in-memory deduplication", function () {
   // Re-import fresh each test to avoid state leakage
   let jm: typeof import("../../agents/lib/job-manager");
 
-  beforeEach(async () => {
-    // Clear module cache to reset openJobs map between tests
-    jm = await import("../../agents/lib/job-manager");
+  beforeEach(() => {
+    delete require.cache[require.resolve("../../agents/lib/job-manager")];
+    jm = require("../../agents/lib/job-manager");
     jm.openJobs.clear();
   });
 

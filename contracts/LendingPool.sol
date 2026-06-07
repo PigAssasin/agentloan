@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./types/DataTypes.sol";
 import "./libraries/ReserveLogic.sol";
 import "./libraries/ValidationLogic.sol";
-import "./PriceOracle.sol";
+import "./interfaces/IPriceOracle.sol";
 import "./InterestRateStrategy.sol";
 
 contract LendingPool is Ownable, ReentrancyGuard, Pausable {
@@ -18,7 +18,7 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
 
     uint256 private constant RAY = 1e27;
 
-    PriceOracle          public immutable oracle;
+    IPriceOracle         public immutable oracle;
     InterestRateStrategy public immutable rateStrategy;
 
     address[]                                          public reserveList;
@@ -55,7 +55,7 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
     event ReserveInitialized(address indexed token);
 
     constructor(address oracle_, address rateStrategy_) Ownable(msg.sender) {
-        oracle       = PriceOracle(oracle_);
+        oracle       = IPriceOracle(oracle_);
         rateStrategy = InterestRateStrategy(rateStrategy_);
     }
 
@@ -343,6 +343,94 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
             data.totalCollateralUSD,
             data.totalDebtUSD
         );
+    }
+
+    // ── Agent Authorization ───────────────────────────────────────────────
+    // Mapping: user → agent address → authorized
+    mapping(address => mapping(address => bool)) public agentAuthorized;
+
+    event AgentAuthorized(address indexed user, address indexed agent, bool allowed);
+
+    function authorizeAgent(address agent, bool allowed) external {
+        require(agent != address(0), "zero agent");
+        agentAuthorized[msg.sender][agent] = allowed;
+        emit AgentAuthorized(msg.sender, agent, allowed);
+    }
+
+    // Supply on behalf of user — position credited to onBehalfOf, tokens pulled from msg.sender
+    function depositFor(
+        address onBehalfOf,
+        address token,
+        uint256 amount
+    ) external nonReentrant whenNotPaused {
+        require(agentAuthorized[onBehalfOf][msg.sender], "agent not authorized");
+        if (amount == 0) revert AmountZero();
+        DataTypes.ReserveData storage r = _getReserve(token);
+        r.updateIndexes();
+        if (r.supplyCap > 0) {
+            uint256 realSupplyNow = _realTotal(r.totalScaledSupply, r.liquidityIndex);
+            if (realSupplyNow + amount > r.supplyCap)
+                revert SupplyCapExceeded(r.supplyCap, realSupplyNow + amount);
+        }
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 scaled = (amount * RAY) / r.liquidityIndex;
+        userScaledSupply[token][onBehalfOf] += scaled;
+        r.totalScaledSupply += scaled;
+        _updateRates(token, r);
+        emit Deposit(token, onBehalfOf, amount);
+    }
+
+    // Withdraw from user's supply position, send tokens to recipient
+    function withdrawFor(
+        address onBehalfOf,
+        address token,
+        uint256 amount,
+        address recipient
+    ) external nonReentrant whenNotPaused {
+        require(agentAuthorized[onBehalfOf][msg.sender], "agent not authorized");
+        if (amount == 0) revert AmountZero();
+        DataTypes.ReserveData storage r = _getReserve(token);
+        r.updateIndexes();
+        uint256 realBalance = _realUserSupply(token, onBehalfOf, r);
+        if (amount > realBalance) revert InsufficientBalance(realBalance, amount);
+        uint256 realBorrow = _realTotal(r.totalScaledBorrow, r.borrowIndex);
+        uint256 realSupply = _realTotal(r.totalScaledSupply, r.liquidityIndex);
+        uint256 liquidity  = realSupply > realBorrow ? realSupply - realBorrow : 0;
+        if (amount > liquidity) revert InsufficientLiquidity(liquidity, amount);
+        uint256 scaledToRemove = (amount * RAY + r.liquidityIndex - 1) / r.liquidityIndex;
+        uint256 userScaled = userScaledSupply[token][onBehalfOf];
+        if (scaledToRemove > userScaled) scaledToRemove = userScaled;
+        userScaledSupply[token][onBehalfOf] -= scaledToRemove;
+        r.totalScaledSupply -= scaledToRemove;
+        _updateRates(token, r);
+        IERC20(token).safeTransfer(recipient, amount);
+        emit Withdraw(token, onBehalfOf, amount);
+    }
+
+    // Anyone can repay debt on behalf of a borrower — tokens pulled from msg.sender
+    function repayFor(
+        address borrower,
+        address token,
+        uint256 amount
+    ) external nonReentrant whenNotPaused {
+        if (amount == 0) revert AmountZero();
+        DataTypes.ReserveData storage r = _getReserve(token);
+        r.updateIndexes();
+        uint256 realDebt    = _realUserBorrow(token, borrower, r);
+        uint256 repayAmount = amount > realDebt ? realDebt : amount;
+        uint256 currentScaled = userScaledBorrow[token][borrower];
+        uint256 scaledToRemove;
+        if (repayAmount >= realDebt) {
+            scaledToRemove = currentScaled;
+        } else {
+            scaledToRemove = (repayAmount * RAY) / r.borrowIndex;
+            if (scaledToRemove > currentScaled) scaledToRemove = currentScaled;
+        }
+        userScaledBorrow[token][borrower] -= scaledToRemove;
+        r.totalScaledBorrow -= scaledToRemove;
+        _updateRates(token, r);
+        IERC20(token).safeTransferFrom(msg.sender, address(this), repayAmount);
+        emit Repay(token, borrower, repayAmount);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
