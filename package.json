@@ -23,6 +23,7 @@
     "@pythnetwork/pyth-evm-js": "^2.0.0",
     "@pythnetwork/pyth-sdk-solidity": "^4.3.1",
     "@rainbow-me/rainbowkit": "^2.2.4",
+    "@supabase/supabase-js": "^2.107.0",
     "@tanstack/react-query": "^5.62.7",
     "@types/three": "^0.184.1",
     "next": "^16.2.6",
