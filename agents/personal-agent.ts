@@ -309,17 +309,12 @@ async function runCycle() {
       }
 
       try {
-        // Check if user has xUSDC supply to withdraw
-        // If they only have xUSDC as both collateral AND debt, use repayFromWallet
-        // (emergencyProtect fails because withdrawing collateral drops HF before repay)
-        const xUSDCSupply = await publicClient.readContract({
-          address: ARC_TESTNET_CONTRACTS.LENDING_POOL, abi: POOL_ABI,
-          functionName: "getUserSupplyBalance" as any,
-          args: [ARC_TESTNET_CONTRACTS.X_USDC, user.wallet_address as `0x${string}`],
-        }) as bigint;
-
-        const useWalletRepay = xUSDCSupply === 0n || xUSDCSupply < actual;
-        const functionName = useWalletRepay ? "repayFromWallet" : "emergencyProtect";
+        // Prefer repayFromWallet: pulls from user wallet, no HF side-effect
+        // emergencyProtect fails when xUSDC is both collateral AND debt
+        // (withdrawing collateral drops HF before repay can execute)
+        const functionName = (walletBalance as bigint) >= actual
+          ? "repayFromWallet"
+          : "emergencyProtect";
 
         const hash = await deployerWallet.writeContract({
           address:      ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR,
