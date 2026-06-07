@@ -102,15 +102,15 @@ async function getEnabledUsers(): Promise<UserSub[]> {
 
 async function getHFBatch(wallets: string[]): Promise<Map<string, { hf: number; debtUSD: number; weightedColl: number }>> {
   if (!wallets.length) return new Map();
-  // Reuse pool-reader's Multicall3-based batch — already handles all encoding
   const positions: UserPosition[] = await getPositionsBatch(wallets as `0x${string}`[]);
   const map = new Map<string, { hf: number; debtUSD: number; weightedColl: number }>();
   for (const p of positions) {
-    map.set(p.address.toLowerCase(), {
-      hf:           Number(p.healthFactor)       / 1e18,
-      debtUSD:      Number(p.totalDebtUSD)       / 1e18,
-      weightedColl: Number(p.totalCollateralUSD) / 1e18, // pool-reader returns weighted
-    });
+    const hf      = Number(p.healthFactor) / 1e18;
+    const debtUSD = Number(p.totalDebtUSD) / 1e18;
+    // Derive weighted collateral from HF formula: HF = weightedColl / debt
+    // This avoids pool-reader's raw vs weighted naming confusion
+    const weightedColl = hf * debtUSD;
+    map.set(p.address.toLowerCase(), { hf, debtUSD, weightedColl });
   }
   return map;
 }
