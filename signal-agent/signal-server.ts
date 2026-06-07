@@ -26,7 +26,7 @@ dotenv.config({ path: "/root/arcbank/.env.local" });
 const RPC_URL       = process.env.NEXT_PUBLIC_ARC_RPC ?? "https://rpc.testnet.arc.network";
 const AGENT_ADDRESS = (process.env.SIGNAL_AGENT_ADDRESS ?? "") as Address;
 const PORT          = parseInt(process.env.SIGNAL_AGENT_PORT ?? "3001");
-const POOL          = "0xC0aC41e7ACF5a4c150CbF7236F7E0f8e95aD80ec" as Address;
+const POOL          = "0xA5F8E24a5a97e9cA763D0FB4777786B684Aceb9B" as Address; // LendingPool v3
 const X_USDC        = "0xFa090bd1A524D861542888B6c5e7965dde1F4f35" as Address;
 const MULTICALL3    = "0xcA11bde05977b3631167028862bE2a173976CA11" as Address;
 
