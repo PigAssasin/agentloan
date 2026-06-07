@@ -151,8 +151,9 @@ JOBS tab (browser)
 
 | Contract | Address |
 |---|---|
-| LendingPool | [`0x4bdb1da10ac78061b922705acbad907ad9cb70e9`](https://testnet.arcscan.app/address/0x4bdb1da10ac78061b922705acbad907ad9cb70e9) |
-| PriceOraclePyth v2 | [`0xf0fcba0e48e53870e451ff57c77cc517337b1c2d`](https://testnet.arcscan.app/address/0xf0fcba0e48e53870e451ff57c77cc517337b1c2d) |
+| LendingPool v3 | [`0xA5F8E24a5a97e9cA763D0FB4777786B684Aceb9B`](https://testnet.arcscan.app/address/0xA5F8E24a5a97e9cA763D0FB4777786B684Aceb9B) |
+| PriceOraclePyth v3 | [`0x440B0f69AADd464d88ED205191ed1a45374bCCF6`](https://testnet.arcscan.app/address/0x440B0f69AADd464d88ED205191ed1a45374bCCF6) |
+| AgentExecutor | [`0x81E1d5F98e2804be55190610Dcb6DbB71E9CABdA`](https://testnet.arcscan.app/address/0x81E1d5F98e2804be55190610Dcb6DbB71E9CABdA) |
 | InterestRateStrategy | [`0x22B2A153F7694e49096ef91D627a80c5b6602Ffd`](https://testnet.arcscan.app/address/0x22B2A153F7694e49096ef91D627a80c5b6602Ffd) |
 | xUSDC (mock) | [`0xFa090bd1A524D861542888B6c5e7965dde1F4f35`](https://testnet.arcscan.app/address/0xFa090bd1A524D861542888B6c5e7965dde1F4f35) |
 | xEURC (mock) | [`0x11aC6A7f4c3235e4edda971838640bE9e55aC222`](https://testnet.arcscan.app/address/0x11aC6A7f4c3235e4edda971838640bE9e55aC222) |
