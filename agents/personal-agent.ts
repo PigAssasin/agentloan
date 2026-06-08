@@ -252,7 +252,9 @@ async function runCycle() {
     if (!pos || pos.debtUSD === 0) continue;
 
     const { hf, debtUSD, weightedColl } = pos;
-    const urgency = hf < 1.05 ? 3 : hf < user.hf_target ? 2 : hf < user.hf_target + 0.15 ? 1 : 0;
+    // Urgency 1 threshold uses strict gap to avoid floating-point boundary triggers
+    // e.g. target=1.30 → only trigger urgency 1 if HF < 1.43 (not 1.45)
+    const urgency = hf < 1.05 ? 3 : hf < user.hf_target ? 2 : hf < user.hf_target + 0.13 ? 1 : 0;
     if (urgency === 0) continue;
 
     // Check authorization (on-chain)
@@ -293,7 +295,15 @@ async function runCycle() {
     // ── Execute repay ──────────────────────────────────────────────────────
     if (decision.action === "emergency_protect" || decision.action === "repay") {
       const repayAmount = calcRepayAmount(debtUSD, weightedColl, user.hf_target + 0.15);
-      const actual      = repayAmount > (approved as bigint) ? (approved as bigint) : repayAmount;
+
+      // Guard: skip if HF already safely above target (LLM sometimes hallucinates repay)
+      // Also skip if repay amount < $10 (floating point noise, not worth gas)
+      if (hf >= user.hf_target + 0.10 || repayAmount < parseUnits("10", 6)) {
+        console.log(`  [skip] ${user.wallet_address.slice(0,10)}... HF ${hf.toFixed(3)} safe or repay tiny`);
+        continue;
+      }
+
+      const actual = repayAmount > (approved as bigint) ? (approved as bigint) : repayAmount;
 
       // Min coverage check
       if (repayAmount > 0n && Number(actual) / Number(repayAmount) < MIN_COVERAGE) {
