@@ -249,13 +249,13 @@ async function runCycle() {
 
   for (const user of users) {
     const pos = hfMap.get(user.wallet_address);
-    if (!pos || pos.debtUSD === 0) continue;
+    if (!pos) continue;
 
     const { hf, debtUSD, weightedColl } = pos;
     // Urgency 1 threshold uses strict gap to avoid floating-point boundary triggers
     // e.g. target=1.30 → only trigger urgency 1 if HF < 1.43 (not 1.45)
-    const urgency = hf < 1.05 ? 3 : hf < user.hf_target ? 2 : hf < user.hf_target + 0.13 ? 1 : 0;
-    if (urgency === 0) continue;
+    // debtUSD === 0 → urgency 0, but may still deploy idle xUSDC to yield
+    const urgency = debtUSD === 0 ? 0 : (hf < 1.05 ? 3 : hf < user.hf_target ? 2 : hf < user.hf_target + 0.13 ? 1 : 0);
 
     // Check authorization (on-chain)
     const authorized = await publicClient.readContract({
@@ -278,16 +278,22 @@ async function runCycle() {
       }),
     ]) as [bigint, bigint];
 
+    // Skip only when position is healthy AND no deployable idle balance
+    if (urgency === 0 && (walletBalance as bigint) < MIN_DEPLOY) continue;
+
     let decision: Decision;
     if (urgency >= 3) {
       // Emergency — skip LLM
       const repayUSD = Math.max(0, debtUSD - weightedColl / (user.hf_target + 0.2));
       decision = { action: "emergency_protect", amountUsd: repayUSD, reason: `HF ${hf.toFixed(2)} < 1.05 — emergency` };
-    } else if (shouldCallLLM(user)) {
+    } else if (urgency > 0 && shouldCallLLM(user)) {
       decision = await decideLLM(user, hf, debtUSD, weightedColl, approved as bigint);
       await updateLastLLMCall(user.wallet_address);
-    } else {
+    } else if (urgency > 0) {
       decision = decideRuleBased(user, hf, debtUSD, weightedColl, walletBalance as bigint);
+    } else {
+      // urgency === 0 but has idle xUSDC above MIN_DEPLOY — deploy to yield
+      decision = { action: "deploy_yield", amountUsd: Number(walletBalance as bigint) / 1e6, reason: "Idle xUSDC, HF safe" };
     }
 
     if (decision.action === "skip") continue;
