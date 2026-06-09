@@ -1,19 +1,28 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { parseUnits } from "viem";
+import { parseUnits, maxUint256 } from "viem";
 import { ARC_TESTNET_CONTRACTS } from "../../../config/contracts";
 import LendingPoolABI  from "@/lib/abi-lending-pool.json";
 import MockERC20ABI    from "@/lib/abi-mock-erc20.json";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
+interface MarketRate { supplyAPY: number; borrowAPY: number; }
+
 interface AgentStatus {
-  healthFactor:   string;
-  totalDebtUSD:   string;
-  isAuthorized:   boolean;
-  approvedAmount: string;
-  hasTelegram:    boolean;
+  healthFactor:       string;
+  totalDebtUSD:       string;
+  isAuthorized:       boolean;
+  approvedAmount:     string;
+  hasTelegram:        boolean;
+  // v2 fields
+  markets?:           Record<string, MarketRate>;
+  supplied?:          Record<string, number>;
+  borrowed?:          Record<string, number>;
+  wallet?:            Record<string, number>;
+  netYieldPerYear?:   string;
+  needsTokenApproval?: string[];
 }
 
 interface AgentSettings {
@@ -36,9 +45,15 @@ interface AgentAction {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-const S: React.CSSProperties = { fontFamily: "var(--font-body)" };
+const S:    React.CSSProperties = { fontFamily: "var(--font-body)" };
 const MONO: React.CSSProperties = { fontFamily: "var(--font-mono)" };
 const HEAD: React.CSSProperties = { fontFamily: "var(--font-heading)" };
+
+const TOKEN_ADDRS: Record<string, `0x${string}`> = {
+  xUSDC:   ARC_TESTNET_CONTRACTS.X_USDC,
+  xEURC:   ARC_TESTNET_CONTRACTS.X_EURC,
+  xclrBTC: ARC_TESTNET_CONTRACTS.X_CLR_BTC,
+};
 
 function fmtTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -53,9 +68,118 @@ function fmtTime(iso: string): string {
 function actionLabel(action: string): string {
   if (action === "emergency_protect") return "⚡ Emergency repay";
   if (action === "deploy_yield")      return "📈 Deployed to yield";
+  if (action === "supply_usdc")       return "📈 Supplied xUSDC";
+  if (action === "supply_eurc")       return "📈 Supplied xEURC";
+  if (action === "supply_btc")        return "📈 Supplied xclrBTC";
   if (action === "repay")             return "↩ Repaid";
+  if (action === "notify_borrow")     return "💡 Borrow suggestion sent";
   if (action === "skip")              return "— Skipped";
   return action;
+}
+
+// ── Yield Dashboard ───────────────────────────────────────────────────────
+
+function YieldDashboard({ status }: { status: AgentStatus }) {
+  const { markets, supplied, borrowed, wallet, netYieldPerYear } = status;
+  if (!markets || !supplied || !borrowed || !wallet) return null;
+
+  const syms = ["xUSDC", "xEURC", "xclrBTC"] as const;
+  const netYield = parseFloat(netYieldPerYear ?? "0");
+  const hasAnyPosition = syms.some(s => supplied[s] > 0 || wallet[s] > 0);
+
+  if (!hasAnyPosition) return null;
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ ...S, fontSize: 11, color: "#666", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>Yield Dashboard</div>
+      <div style={{ border: "2px solid #000", overflow: "hidden" }}>
+        {/* Table header */}
+        <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 1fr 1fr 1fr", background: "#000", color: "#fff", padding: "6px 10px", ...MONO, fontSize: 10 }}>
+          <div>ASSET</div><div>WALLET</div><div>SUPPLIED</div><div>BORROWED</div><div>SUPPLY APY</div><div>BORROW APY</div>
+        </div>
+        {syms.map(sym => {
+          const m = markets[sym];
+          const isIdle = wallet[sym] > 1 && supplied[sym] === 0;
+          return (
+            <div key={sym} style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 1fr 1fr 1fr", padding: "7px 10px", background: isIdle ? "#fffde7" : "#fff", borderTop: "1px solid #eee", ...MONO, fontSize: 12 }}>
+              <div style={{ fontWeight: 700, color: "#000" }}>{sym}</div>
+              <div style={{ color: isIdle ? "#e65100" : "#444" }}>${wallet[sym].toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+              <div style={{ color: supplied[sym] > 0 ? "#008000" : "#ccc" }}>${supplied[sym].toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+              <div style={{ color: borrowed[sym] > 0 ? "#c00" : "#ccc" }}>${borrowed[sym].toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+              <div style={{ color: "#008000" }}>{m.supplyAPY.toFixed(2)}%</div>
+              <div style={{ color: "#c00"    }}>{m.borrowAPY.toFixed(2)}%</div>
+            </div>
+          );
+        })}
+      </div>
+      {/* Net yield */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 6 }}>
+        <div style={{ ...S, fontSize: 11, color: "#666" }}>Net yield / year:</div>
+        <div style={{ ...MONO, fontSize: 14, fontWeight: 700, color: netYield >= 0 ? "#008000" : "#c00" }}>
+          {netYield >= 0 ? "+" : ""}${netYield.toFixed(2)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Token Approval Section ────────────────────────────────────────────────
+
+function MultiTokenApproval({ status, onDone }: { status: AgentStatus; onDone: () => void }) {
+  const needs = status.needsTokenApproval ?? [];
+  // Only show if there are extra tokens needing approval (xEURC or xclrBTC)
+  const extra = needs.filter(t => t !== "xUSDC");
+  if (extra.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 16, padding: "12px 14px", background: "#f0f7ff", border: "2px solid #0066cc" }}>
+      <div style={{ ...S, fontSize: 12, fontWeight: 700, color: "#0066cc", marginBottom: 8 }}>
+        Unlock multi-asset yield
+      </div>
+      <div style={{ ...S, fontSize: 12, color: "#333", marginBottom: 10 }}>
+        Approve these tokens so the agent can deploy idle balances to yield:
+      </div>
+      {extra.map(sym => (
+        <TokenApproveRow key={sym} sym={sym} onDone={onDone} />
+      ))}
+    </div>
+  );
+}
+
+function TokenApproveRow({ sym, onDone }: { sym: string; onDone: () => void }) {
+  const { writeContract, data: txHash, isPending: sending } = useWriteContract();
+  const { isSuccess, isLoading: confirming }                = useWaitForTransactionReceipt({ hash: txHash });
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (isSuccess) { setDone(true); setTimeout(() => onDone(), 1200); }
+  }, [isSuccess, onDone]);
+
+  function approve() {
+    const tokenAddr = TOKEN_ADDRS[sym];
+    if (!tokenAddr) return;
+    writeContract({
+      address: tokenAddr, abi: MockERC20ABI as any,
+      functionName: "approve",
+      args: [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, maxUint256],
+    });
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+      <div style={{ ...MONO, fontSize: 13, color: done ? "#008000" : "#000", minWidth: 24 }}>
+        {done ? "✓" : "○"}
+      </div>
+      <div style={{ ...S, fontSize: 13, flex: 1, color: "#000" }}>{sym}</div>
+      {!done && (
+        <button onClick={approve} disabled={sending || confirming}
+          style={{ border: "2px solid #0066cc", background: (sending||confirming) ? "#eee" : "#0066cc", color: (sending||confirming) ? "#999" : "#fff", padding: "5px 14px", ...S, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+          {sending ? "SIGN..." : confirming ? "CONFIRMING..." : `APPROVE ${sym} →`}
+        </button>
+      )}
+      {done && <div style={{ ...S, fontSize: 11, color: "#008000" }}>Approved ✓</div>}
+    </div>
+  );
 }
 
 // ── Main Component ────────────────────────────────────────────────────────
@@ -109,7 +233,6 @@ export function PersonalAgentPanel() {
     return () => clearInterval(id);
   }, [isConnected, address, loadData]);
 
-  // Reload after tx confirmed — small delay to let RPC catch up
   useEffect(() => {
     if (approveOk || authOk || revokeOk) {
       setTimeout(() => loadData(), 1500);
@@ -124,25 +247,19 @@ export function PersonalAgentPanel() {
     </div>
   );
 
-  const isSetup = status?.isAuthorized && Number(status?.approvedAmount ?? 0) > 0;
-  const isActive = isSetup && settings?.enabled;
-  const hasDebt = Number(status?.totalDebtUSD ?? 0) > 0;
-  const hf = Number(status?.healthFactor ?? 0);
-  const hfDanger = hf > 0 && hf < Number(settings?.hfTarget ?? 1.3) + 0.15;
+  const isSetup   = status?.isAuthorized && Number(status?.approvedAmount ?? 0) > 0;
+  const isActive  = isSetup && settings?.enabled;
+  const hasDebt   = Number(status?.totalDebtUSD ?? 0) > 0;
+  const hf        = Number(status?.healthFactor ?? 0);
+  const hfDanger  = hf > 0 && hf < Number(settings?.hfTarget ?? 1.3) + 0.15;
 
-  // ── Setup state ──────────────────────────────────────────────────────────
   async function handleEnable(enabled: boolean) {
     if (!address) return;
     setSaving(true);
     try {
       await fetch("/api/personal-agent/settings", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
-          address:  address.toLowerCase(),
-          enabled,
-          hfTarget: parseFloat(hfInput),
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: address.toLowerCase(), enabled, hfTarget: parseFloat(hfInput) }),
       });
       await loadData();
     } catch (e) { console.error(e); }
@@ -153,39 +270,30 @@ export function PersonalAgentPanel() {
     if (!address) return;
     setTxError(null);
     writeApprove({
-      address:      ARC_TESTNET_CONTRACTS.X_USDC,
-      abi:          MockERC20ABI as any,
+      address: ARC_TESTNET_CONTRACTS.X_USDC, abi: MockERC20ABI as any,
       functionName: "approve",
-      args:         [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, parseUnits("10000", 6)],
-    }, {
-      onError: (e) => setTxError(e.message?.slice(0, 120)),
-    });
+      args: [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, parseUnits("10000", 6)],
+    }, { onError: (e) => setTxError(e.message?.slice(0, 120)) });
   }
 
   function handleRevoke() {
     if (!address) return;
     setTxError(null);
     writeRevoke({
-      address:      ARC_TESTNET_CONTRACTS.X_USDC,
-      abi:          MockERC20ABI as any,
+      address: ARC_TESTNET_CONTRACTS.X_USDC, abi: MockERC20ABI as any,
       functionName: "approve",
-      args:         [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, 0n],
-    }, {
-      onError: (e) => setTxError(e.message?.slice(0, 120)),
-    });
+      args: [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, 0n],
+    }, { onError: (e) => setTxError(e.message?.slice(0, 120)) });
   }
 
   function handleAuthorize() {
     if (!address) return;
     setTxError(null);
     writeAuth({
-      address:      ARC_TESTNET_CONTRACTS.LENDING_POOL,
-      abi:          LendingPoolABI as any,
+      address: ARC_TESTNET_CONTRACTS.LENDING_POOL, abi: LendingPoolABI as any,
       functionName: "authorizeAgent",
-      args:         [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, true],
-    }, {
-      onError: (e) => setTxError(e.message?.slice(0, 120)),
-    });
+      args: [ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, true],
+    }, { onError: (e) => setTxError(e.message?.slice(0, 120)) });
   }
 
   const step1Done = Number(status?.approvedAmount ?? 0) > 0;
@@ -205,7 +313,7 @@ export function PersonalAgentPanel() {
         </div>
       </div>
 
-      {/* Setup wizard — show if not fully set up */}
+      {/* Setup wizard */}
       {!isSetup && (
         <div style={{ marginBottom: 20 }}>
           <div style={{ ...S, fontSize: 13, color: "#444", marginBottom: 16 }}>
@@ -218,14 +326,9 @@ export function PersonalAgentPanel() {
             </div>
           )}
 
-          {/* Step 1: Approve */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <div style={{ ...MONO, fontSize: 13, color: step1Done ? "#008000" : "#000", minWidth: 24 }}>
-              {step1Done ? "✓" : "①"}
-            </div>
-            <div style={{ ...S, fontSize: 13, flex: 1 }}>
-              Approve xUSDC to agent executor
-            </div>
+            <div style={{ ...MONO, fontSize: 13, color: step1Done ? "#008000" : "#000", minWidth: 24 }}>{step1Done ? "✓" : "①"}</div>
+            <div style={{ ...S, fontSize: 13, flex: 1 }}>Approve xUSDC to agent executor</div>
             {!step1Done && (
               <button onClick={handleApprove} disabled={approving}
                 style={{ border: "2px solid #000", background: approving ? "#eee" : "#000", color: approving ? "#999" : "#fff", padding: "6px 16px", ...S, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
@@ -234,14 +337,9 @@ export function PersonalAgentPanel() {
             )}
           </div>
 
-          {/* Step 2: Authorize */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <div style={{ ...MONO, fontSize: 13, color: step2Done ? "#008000" : "#000", minWidth: 24 }}>
-              {step2Done ? "✓" : "②"}
-            </div>
-            <div style={{ ...S, fontSize: 13, flex: 1 }}>
-              Authorize agent in LendingPool
-            </div>
+            <div style={{ ...MONO, fontSize: 13, color: step2Done ? "#008000" : "#000", minWidth: 24 }}>{step2Done ? "✓" : "②"}</div>
+            <div style={{ ...S, fontSize: 13, flex: 1 }}>Authorize agent in LendingPool</div>
             {!step2Done && (
               <button onClick={handleAuthorize} disabled={authing}
                 style={{ border: "2px solid #000", background: authing ? "#eee" : "#000", color: authing ? "#999" : "#fff", padding: "6px 16px", ...S, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
@@ -250,15 +348,13 @@ export function PersonalAgentPanel() {
             )}
           </div>
 
-          {/* Step 3: HF target + activate */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
             <div style={{ ...MONO, fontSize: 13, color: "#999", minWidth: 24 }}>③</div>
             <div style={{ ...S, fontSize: 13 }}>HF Target</div>
             <input type="number" min="1.1" max="3.0" step="0.05" value={hfInput}
               onChange={e => setHfInput(e.target.value)}
               style={{ border: "2px solid #000", padding: "5px 10px", ...MONO, fontSize: 13, width: 70, background: "#fff" }} />
-            <button onClick={() => handleEnable(true)}
-              disabled={!step1Done || !step2Done || saving}
+            <button onClick={() => handleEnable(true)} disabled={!step1Done || !step2Done || saving}
               style={{ border: "2px solid #000", background: (!step1Done || !step2Done || saving) ? "#eee" : "#000", color: (!step1Done || !step2Done || saving) ? "#999" : "#fff", padding: "6px 20px", ...S, fontSize: 12, fontWeight: 700, cursor: "pointer", flex: 1 }}>
               {saving ? "ACTIVATING..." : "ACTIVATE AGENT"}
             </button>
@@ -269,7 +365,7 @@ export function PersonalAgentPanel() {
       {/* Active state */}
       {isSetup && (
         <>
-          {/* HF row */}
+          {/* HF row — only when has debt */}
           {hasDebt && (
             <div style={{ display: "flex", gap: 24, marginBottom: 16, padding: "12px 16px", background: hfDanger ? "#fff8e1" : "#f9f9f9", border: `2px solid ${hfDanger ? "#ff9800" : "#ddd"}` }}>
               <div>
@@ -279,14 +375,11 @@ export function PersonalAgentPanel() {
               <div>
                 <div style={{ ...S, fontSize: 11, color: "#666", marginBottom: 2 }}>TARGET</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <input
-                    type="number" min="1.1" max="3.0" step="0.05" value={hfInput}
+                  <input type="number" min="1.1" max="3.0" step="0.05" value={hfInput}
                     onChange={e => setHfInput(e.target.value)}
-                    style={{ border: "2px solid #000", padding: "2px 8px", ...MONO, fontSize: 16, width: 64, background: "#fff" }}
-                  />
+                    style={{ border: "2px solid #000", padding: "2px 8px", ...MONO, fontSize: 16, width: 64, background: "#fff" }} />
                   {hfInput !== (settings?.hfTarget?.toFixed(2) ?? "1.30") && (
-                    <button onClick={() => handleEnable(!!settings?.enabled)}
-                      disabled={saving}
+                    <button onClick={() => handleEnable(!!settings?.enabled)} disabled={saving}
                       style={{ border: "2px solid #000", background: "#000", color: "#fff", padding: "3px 10px", ...S, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                       {saving ? "..." : "SAVE"}
                     </button>
@@ -321,16 +414,20 @@ export function PersonalAgentPanel() {
 
           {!hasDebt && (
             <div style={{ ...S, fontSize: 13, color: "#666", marginBottom: 16 }}>
-              No active borrow position. Agent will deploy idle xUSDC to yield when available.
+              No active borrow. Agent deploys idle balances to yield.
             </div>
           )}
+
+          {/* Yield Dashboard */}
+          {status && <YieldDashboard status={status} />}
+
+          {/* Multi-token approval */}
+          {status && <MultiTokenApproval status={status} onDone={loadData} />}
 
           {/* Last action */}
           {actions[0] && (
             <div style={{ padding: "10px 14px", background: "#f5f5f5", borderLeft: "4px solid #000", marginBottom: 16 }}>
-              <div style={{ ...S, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
-                {actionLabel(actions[0].action)}
-              </div>
+              <div style={{ ...S, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{actionLabel(actions[0].action)}</div>
               {actions[0].amount_usd && (
                 <div style={{ ...MONO, fontSize: 12, color: "#444" }}>
                   ${actions[0].amount_usd.toFixed(0)} · HF {(actions[0].hf_before ?? 0).toFixed(2)} → {(actions[0].hf_after ?? 0).toFixed(2)}

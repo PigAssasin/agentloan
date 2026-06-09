@@ -15,14 +15,13 @@ interface ILendingPoolAgent {
 }
 
 /**
- * AgentExecutor — generic executor contract for all agent types.
+ * AgentExecutor v2 — multi-asset executor for Personal Agent.
  *
- * Authorized agent wallets (VPS) call this contract to:
- *   deployToYield:      pull xUSDC from user → supply into pool → user earns yield
- *   emergencyProtect:   withdraw user's supply + repay user's debt in 1 atomic tx
- *
- * Future agent types (Hunter, Protocol Manager) can add functions here.
- * Owner (deployer) manages which agent wallets are authorized.
+ * v1 functions kept intact (deployToYield, emergencyProtect, repayFromWallet).
+ * v2 adds:
+ *   deployTokenToYield:      generic supply for any whitelisted token
+ *   withdrawTokenFromYield:  withdraw any token from pool back to user wallet
+ *   supportedTokens:         owner-managed whitelist (safety gate)
  */
 contract AgentExecutor is Ownable {
     using SafeERC20 for IERC20;
@@ -31,12 +30,17 @@ contract AgentExecutor is Ownable {
     IERC20            public immutable xUSDC;
 
     mapping(address => bool) public authorizedAgents;
+    mapping(address => bool) public supportedTokens;   // v2: token whitelist
 
     event AgentSet(address indexed agent, bool allowed);
+    event TokenSupported(address indexed token, bool allowed);
     event YieldDeployed(address indexed user, uint256 amount);
+    event TokenYieldDeployed(address indexed user, address indexed token, uint256 amount);
+    event TokenYieldWithdrawn(address indexed user, address indexed token, uint256 amount);
     event EmergencyProtected(address indexed user, uint256 repayAmount);
 
     error NotAgent();
+    error UnsupportedToken(address token);
     error InsufficientSupply(uint256 available, uint256 requested);
 
     modifier onlyAgent() {
@@ -44,36 +48,48 @@ contract AgentExecutor is Ownable {
         _;
     }
 
+    modifier onlySupported(address token) {
+        if (!supportedTokens[token]) revert UnsupportedToken(token);
+        _;
+    }
+
     constructor(address pool_, address xUSDC_) Ownable(msg.sender) {
         pool  = ILendingPoolAgent(pool_);
         xUSDC = IERC20(xUSDC_);
+        // xUSDC always supported by default
+        supportedTokens[xUSDC_] = true;
     }
 
-    // Owner adds/removes agent wallets (VPS bot wallets)
+    // ── Owner admin ────────────────────────────────────────────────────────
+
     function setAgent(address agent, bool allowed) external onlyOwner {
         require(agent != address(0), "zero agent");
         authorizedAgents[agent] = allowed;
         emit AgentSet(agent, allowed);
     }
 
+    function setSupportedToken(address token, bool allowed) external onlyOwner {
+        require(token != address(0), "zero token");
+        supportedTokens[token] = allowed;
+        emit TokenSupported(token, allowed);
+    }
+
+    // ── v1 functions (unchanged) ───────────────────────────────────────────
+
     /**
-     * Pull xUSDC from user wallet → supply to pool → yield credited to user.
-     * Requires: user approved xUSDC to this contract AND authorized this contract in pool.
+     * Pull xUSDC from user wallet → supply to pool.
+     * Kept for backward compatibility — prefer deployTokenToYield.
      */
     function deployToYield(address user, uint256 amount) external onlyAgent {
-        // Pull xUSDC from user
         xUSDC.safeTransferFrom(user, address(this), amount);
-        // Approve pool to take xUSDC from this contract
         xUSDC.forceApprove(address(pool), amount);
-        // Supply — position credited to user
         pool.depositFor(user, address(xUSDC), amount);
         emit YieldDeployed(user, amount);
     }
 
     /**
-     * Atomic: withdraw user's xUSDC supply + repay user's xUSDC debt in 1 tx.
-     * Use only when xUSDC supply != xUSDC debt (different tokens as collateral/debt).
-     * Requires: user authorized this contract in pool.
+     * Atomic: withdraw xUSDC supply + repay xUSDC debt in 1 tx.
+     * Use when xUSDC supply != xUSDC debt (different collateral/debt tokens).
      */
     function emergencyProtect(address user, uint256 repayAmount) external onlyAgent {
         uint256 supplyBal = pool.getUserSupplyBalance(address(xUSDC), user);
@@ -82,19 +98,50 @@ contract AgentExecutor is Ownable {
         pool.withdrawFor(user, address(xUSDC), repayAmount, address(this));
         xUSDC.forceApprove(address(pool), repayAmount);
         pool.repayFor(user, address(xUSDC), repayAmount);
-
         emit EmergencyProtected(user, repayAmount);
     }
 
     /**
-     * Pull xUSDC directly from user's wallet → repay user's debt.
+     * Pull xUSDC from user wallet → repay debt.
      * Use when xUSDC is both collateral and debt (emergencyProtect would fail).
-     * Requires: user approved xUSDC to this contract.
      */
     function repayFromWallet(address user, uint256 repayAmount) external onlyAgent {
         xUSDC.safeTransferFrom(user, address(this), repayAmount);
         xUSDC.forceApprove(address(pool), repayAmount);
         pool.repayFor(user, address(xUSDC), repayAmount);
         emit EmergencyProtected(user, repayAmount);
+    }
+
+    // ── v2 functions (multi-asset) ─────────────────────────────────────────
+
+    /**
+     * Pull any whitelisted token from user wallet → supply to pool.
+     * Requires: user approved `token` to this contract AND authorized this contract in pool.
+     */
+    function deployTokenToYield(
+        address user,
+        address token,
+        uint256 amount
+    ) external onlyAgent onlySupported(token) {
+        IERC20(token).safeTransferFrom(user, address(this), amount);
+        IERC20(token).forceApprove(address(pool), amount);
+        pool.depositFor(user, token, amount);
+        emit TokenYieldDeployed(user, token, amount);
+    }
+
+    /**
+     * Withdraw any whitelisted token from pool back to user's wallet.
+     * Used for rebalancing: pull supplied token → user can redeploy elsewhere.
+     * Requires: user authorized this contract in pool.
+     */
+    function withdrawTokenFromYield(
+        address user,
+        address token,
+        uint256 amount
+    ) external onlyAgent onlySupported(token) {
+        uint256 supplyBal = pool.getUserSupplyBalance(token, user);
+        if (amount > supplyBal) revert InsufficientSupply(supplyBal, amount);
+        pool.withdrawFor(user, token, amount, user);
+        emit TokenYieldWithdrawn(user, token, amount);
     }
 }
