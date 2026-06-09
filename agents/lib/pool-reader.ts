@@ -45,7 +45,7 @@ export interface UserPosition {
 
 // ── Incremental block scanning ─────────────────────────────────────────────
 
-function readLastBlock(): bigint {
+export function readLastBlock(): bigint {
   const file = path.resolve(BOT_CONFIG.STATE_FILE);
   if (fs.existsSync(file)) {
     const val = fs.readFileSync(file, "utf8").trim();

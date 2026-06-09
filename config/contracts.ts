@@ -23,6 +23,9 @@ export const ARC_TESTNET_CONTRACTS = {
   MULTICALL3:       "0xcA11bde05977b3631167028862bE2a173976CA11",
   CREATE2_FACTORY:  "0x4e59b44847b379578588920cA78FbF26c0B4956C",
 
+  // ── Pyth Network on Arc Testnet ────────────────────────────────────────────
+  PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43" as `0x${string}`,
+
   // ── AgentLoan Protocol — Arc Testnet (Pyth real-time oracle) ──────────────────
   LENDING_POOL:          "0xA5F8E24a5a97e9cA763D0FB4777786B684Aceb9B" as `0x${string}`,
   PRICE_ORACLE:          "0x440B0f69AADd464d88ED205191ed1a45374bCCF6" as `0x${string}`, // PriceOraclePyth v3 — EUR 30d staleness

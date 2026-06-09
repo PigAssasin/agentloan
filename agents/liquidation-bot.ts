@@ -40,7 +40,6 @@ import {
   isOracleStale,
 } from "./lib/pool-reader";
 import { createBotWallet, estimatePlan, executeLiquidation } from "./lib/liquidator";
-import { updateOraclePrices }          from "./lib/oracle-updater";
 import { notify, liquidationMessage }  from "./lib/notifier";
 import { checkAndRefill }              from "./lib/auto-refill";
 import { isCircleEnabled, executeWithStrategy, getBotBalanceAddress } from "./lib/execute-strategy";
@@ -48,7 +47,6 @@ import { createLiquidationJob, submitLiquidationProof, closeJob, getJobId } from
 import { fetchSignals } from "./lib/signal-client";
 import { loadMemory, saveMemory, updateOutcome } from "./lib/coordinator-memory";
 import * as fs   from "fs";
-import * as path from "path";
 import type { UserPosition } from "./lib/pool-reader";
 
 const COORDINATOR_FILE      = "agents/state/coordinator.json";
@@ -115,18 +113,6 @@ async function recordReputation(
   }
 }
 
-// Wrap oracle update with timeout — prevents bot from hanging if tx stalls
-async function safeUpdateOracle(wallet: ReturnType<typeof createBotWallet>): Promise<void> {
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error("timed out")), BOT_CONFIG.PRICE_UPDATE_TIMEOUT_MS)
-  );
-  try {
-    await Promise.race([updateOraclePrices(wallet), timeout]);
-    process.stdout.write(" [oracle ✓]");
-  } catch (e: any) {
-    process.stdout.write(` [oracle skip: ${e.message}]`);
-  }
-}
 
 async function main() {
   console.log(`\n🤖 AgentLoan Liquidation Bot`);
@@ -221,15 +207,11 @@ async function main() {
           } catch { /* silent — fallback to Multicall3 below */ }
         }
 
-        // ── Step 2: Update oracle if stale ─────────────────────────────────
-        // Oracle update uses private key wallet (needs native USDC for Pyth fee)
-        // Falls back gracefully if no private key available
+        // ── Step 2: Oracle staleness check (warning only) ──────────────────
+        // Oracle push is handled exclusively by Protocol Manager.
         const stale = await isOracleStale();
         if (stale) {
-          process.stdout.write(`\n  [block ${block.number}] oracle stale, updating...`);
-          if (!BOT_CONFIG.DRY_RUN && pkWallet) await safeUpdateOracle(pkWallet);
-          else process.stdout.write(BOT_CONFIG.DRY_RUN ? " [DRY_RUN skip]" : " [no pk wallet]");
-          process.stdout.write("\n");
+          console.warn(`  [block ${block.number}] oracle stale — Protocol Manager should push`);
         }
 
         // ── Step 3: Batch HF read via Multicall3 (1 RPC call) ──────────────

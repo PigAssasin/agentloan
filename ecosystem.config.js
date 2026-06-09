@@ -20,8 +20,8 @@ module.exports = {
       merge_logs: true,
     },
     {
-      name:        "coordinator-agent",
-      script:      "/root/arcbank/run-coordinator.sh",
+      name:        "protocol-manager",
+      script:      "/root/arcbank/run-protocol-manager.sh",
       cwd:         "/root/arcbank",
       interpreter: "bash",
       env: {
@@ -30,8 +30,8 @@ module.exports = {
       restart_delay:  10000,
       max_restarts:   10,
       min_uptime:     "15s",
-      out_file:  "logs/coordinator-out.log",
-      error_file:"logs/coordinator-err.log",
+      out_file:  "logs/pm-out.log",
+      error_file:"logs/pm-err.log",
       log_date_format: "YYYY-MM-DD HH:mm:ss",
       merge_logs: true,
     },
