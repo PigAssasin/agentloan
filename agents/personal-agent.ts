@@ -375,7 +375,16 @@ async function runCycle() {
     // ── Execute deploy yield ───────────────────────────────────────────────
     if (decision.action === "deploy_yield") {
       const idleBalance = walletBalance as bigint;
-      const deployAmount = idleBalance < (approved as bigint) ? idleBalance : (approved as bigint);
+
+      // Keep a wallet reserve = amount needed to repay debt back to (hf_target + 0.30)
+      // without touching pool collateral, so emergencyProtect is never needed for routine drops.
+      // Formula: reserve = max(0, debt - weightedColl / (target + 0.30)) × 1.2 safety buffer
+      const reserveUSD = debtUSD > 0
+        ? Math.max(0, debtUSD - weightedColl / (user.hf_target + 0.30)) * 1.2
+        : 0;
+      const reserveAmount = parseUnits(Math.ceil(reserveUSD).toFixed(6), 6);
+      const deployable = idleBalance > reserveAmount ? idleBalance - reserveAmount : 0n;
+      const deployAmount = deployable < (approved as bigint) ? deployable : (approved as bigint);
       if (deployAmount < MIN_DEPLOY) continue;
 
       if (DRY_RUN) {
