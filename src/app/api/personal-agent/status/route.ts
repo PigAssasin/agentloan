@@ -68,13 +68,13 @@ export async function GET(req: NextRequest) {
     // [14-16] allowance per asset
 
     const calls = [
-      { target: pool,     allowFailure: false, callData: enc(POOL_ABI,  "getUserAccountData",   [address]) },
-      ...ASSETS.map(a => ({ target: pool, allowFailure: false, callData: enc(POOL_ABI, "getReserveData",    [a.addr]) })),
-      ...ASSETS.map(a => ({ target: pool, allowFailure: false, callData: enc(POOL_ABI, "getUserSupplyBalance", [a.addr, address]) })),
-      ...ASSETS.map(a => ({ target: pool, allowFailure: false, callData: enc(POOL_ABI, "getUserBorrowBalance", [a.addr, address]) })),
-      ...ASSETS.map(a => ({ target: a.addr as `0x${string}`, allowFailure: false, callData: enc(ERC20_ABI, "balanceOf", [address]) })),
-      { target: pool,     allowFailure: false, callData: enc(POOL_ABI,  "agentAuthorized",      [address, executor]) },
-      ...ASSETS.map(a => ({ target: a.addr as `0x${string}`, allowFailure: false, callData: enc(ERC20_ABI, "allowance", [address, executor]) })),
+      { target: pool,     allowFailure: true, callData: enc(POOL_ABI,  "getUserAccountData",   [address]) },
+      ...ASSETS.map(a => ({ target: pool, allowFailure: true, callData: enc(POOL_ABI, "getReserveData",    [a.addr]) })),
+      ...ASSETS.map(a => ({ target: pool, allowFailure: true, callData: enc(POOL_ABI, "getUserSupplyBalance", [a.addr, address]) })),
+      ...ASSETS.map(a => ({ target: pool, allowFailure: true, callData: enc(POOL_ABI, "getUserBorrowBalance", [a.addr, address]) })),
+      ...ASSETS.map(a => ({ target: a.addr as `0x${string}`, allowFailure: true, callData: enc(ERC20_ABI, "balanceOf", [address]) })),
+      { target: pool,     allowFailure: true, callData: enc(POOL_ABI,  "agentAuthorized",      [address, executor]) },
+      ...ASSETS.map(a => ({ target: a.addr as `0x${string}`, allowFailure: true, callData: enc(ERC20_ABI, "allowance", [address, executor]) })),
     ];
 
     const results = await client.readContract({
@@ -86,65 +86,72 @@ export async function GET(req: NextRequest) {
 
     let i = 0;
     function dec(abi: readonly unknown[], fn: string) {
-      return decodeFunctionResult({ abi: abi as Parameters<typeof decodeFunctionResult>[0]["abi"], functionName: fn, data: results[i++].returnData });
+      const r = results[i++];
+      if (!r?.success || !r?.returnData || r.returnData === "0x") return undefined;
+      try {
+        return decodeFunctionResult({ abi: abi as Parameters<typeof decodeFunctionResult>[0]["abi"], functionName: fn, data: r.returnData });
+      } catch { return undefined; }
     }
 
     // [0] Account data
-    const [totalCollUSD, , totalDebtUSD, , healthFactor] = dec(POOL_ABI, "getUserAccountData") as bigint[];
+    const acctRaw = (dec(POOL_ABI, "getUserAccountData") ?? [0n,0n,0n,0n,0n]) as bigint[];
+    const [totalCollUSD, , totalDebtUSD, , healthFactor] = acctRaw;
 
     // [1-3] Reserve data → APY
-    // getReserveData has named returns, but via type-erased ABI viem may return an array.
-    // Index 2 = currentLiquidityRate, index 3 = currentBorrowRate (per ABI definition order).
+    // getReserveData has named returns; via type-erased ABI viem may return array or object.
+    // Indices: 0=liquidityIndex,1=borrowIndex,2=currentLiquidityRate,3=currentBorrowRate,...
     const markets: Record<Sym, { supplyAPY: number; borrowAPY: number }> = {} as never;
     for (const a of ASSETS) {
-      const rd = dec(POOL_ABI, "getReserveData") as unknown;
+      const rd = dec(POOL_ABI, "getReserveData") as unknown ?? {};
       const rdArr = rd as bigint[];
-      const liqRate  = rdArr[2] ?? (rd as Record<string, bigint>).currentLiquidityRate ?? 0n;
-      const borRate  = rdArr[3] ?? (rd as Record<string, bigint>).currentBorrowRate    ?? 0n;
+      const liqRate = rdArr[2] ?? (rd as Record<string, bigint>).currentLiquidityRate ?? 0n;
+      const borRate = rdArr[3] ?? (rd as Record<string, bigint>).currentBorrowRate    ?? 0n;
       markets[a.sym as Sym] = {
-        supplyAPY: Number(liqRate) / 1e27 * 100,
-        borrowAPY: Number(borRate) / 1e27 * 100,
+        supplyAPY: Number(liqRate ?? 0n) / 1e27 * 100,
+        borrowAPY: Number(borRate ?? 0n) / 1e27 * 100,
       };
     }
 
     // [4-6] Supply balances
     const supplied: Record<Sym, number> = {} as never;
     for (const a of ASSETS) {
-      const raw = dec(POOL_ABI, "getUserSupplyBalance") as bigint;
+      const raw = (dec(POOL_ABI, "getUserSupplyBalance") as bigint) ?? 0n;
       supplied[a.sym as Sym] = Number(raw) / 10 ** a.dec;
     }
 
     // [7-9] Borrow balances
     const borrowed: Record<Sym, number> = {} as never;
     for (const a of ASSETS) {
-      const raw = dec(POOL_ABI, "getUserBorrowBalance") as bigint;
+      const raw = (dec(POOL_ABI, "getUserBorrowBalance") as bigint) ?? 0n;
       borrowed[a.sym as Sym] = Number(raw) / 10 ** a.dec;
     }
 
     // [10-12] Wallet balances
     const wallet: Record<Sym, number> = {} as never;
     for (const a of ASSETS) {
-      const raw = dec(ERC20_ABI, "balanceOf") as bigint;
+      const raw = (dec(ERC20_ABI, "balanceOf") as bigint) ?? 0n;
       wallet[a.sym as Sym] = Number(raw) / 10 ** a.dec;
     }
 
     // [13] Agent authorized
-    const isAuthorized = dec(POOL_ABI, "agentAuthorized") as boolean;
+    const isAuthorized = (dec(POOL_ABI, "agentAuthorized") as boolean) ?? false;
 
     // [14-16] Allowances
     const allowances: Record<Sym, bigint> = {} as never;
     for (const a of ASSETS) {
-      allowances[a.sym as Sym] = dec(ERC20_ABI, "allowance") as bigint;
+      allowances[a.sym as Sym] = (dec(ERC20_ABI, "allowance") as bigint) ?? 0n;
     }
 
     // Derived: net yield per year (USD)
     const netYieldPerYear = (["xUSDC", "xEURC", "xclrBTC"] as Sym[]).reduce((sum, sym) => {
       const m = markets[sym];
-      return sum + supplied[sym] * m.supplyAPY / 100 - borrowed[sym] * m.borrowAPY / 100;
+      const s = supplied[sym] ?? 0;
+      const b = borrowed[sym] ?? 0;
+      return sum + s * (m?.supplyAPY ?? 0) / 100 - b * (m?.borrowAPY ?? 0) / 100;
     }, 0);
 
     // Derived: approvedAmount (xUSDC backward compat)
-    const xUSDCAllowance = allowances.xUSDC;
+    const xUSDCAllowance = allowances.xUSDC ?? 0n;
     const approvedAmount = xUSDCAllowance > 2n ** 128n
       ? "unlimited"
       : (Number(xUSDCAllowance) / 1e6).toFixed(2);

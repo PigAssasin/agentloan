@@ -215,16 +215,21 @@ export function PersonalAgentPanel() {
   const loadData = useCallback(async () => {
     if (!address) return;
     const addr = address.toLowerCase();
-    const [st, se, ac] = await Promise.all([
-      fetch(`/api/personal-agent/status?address=${addr}`).then(r => r.json()),
-      fetch(`/api/personal-agent/settings?address=${addr}`).then(r => r.json()),
-      fetch(`/api/personal-agent/actions?address=${addr}&limit=5`).then(r => r.json()),
-    ]);
-    setStatus(st.error   ? null : st);
-    setSettings(se.error ? null : se);
-    setActions(Array.isArray(ac) ? ac : []);
-    if (se?.hfTarget) setHfInput(Number(se.hfTarget).toFixed(2));
-    setLoading(false);
+    try {
+      const [st, se, ac] = await Promise.all([
+        fetch(`/api/personal-agent/status?address=${addr}`).then(r => r.json()).catch(() => null),
+        fetch(`/api/personal-agent/settings?address=${addr}`).then(r => r.json()).catch(() => null),
+        fetch(`/api/personal-agent/actions?address=${addr}&limit=5`).then(r => r.json()).catch(() => []),
+      ]);
+      setStatus(st?.error ? null : (st ?? null));
+      setSettings(se?.error ? null : (se ?? null));
+      setActions(Array.isArray(ac) ? ac : []);
+      if (se?.hfTarget) setHfInput(Number(se.hfTarget).toFixed(2));
+    } catch {
+      // API failure — keep existing state, don't crash
+    } finally {
+      setLoading(false);
+    }
   }, [address]);
 
   useEffect(() => {
