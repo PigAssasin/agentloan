@@ -93,12 +93,17 @@ export async function GET(req: NextRequest) {
     const [totalCollUSD, , totalDebtUSD, , healthFactor] = dec(POOL_ABI, "getUserAccountData") as bigint[];
 
     // [1-3] Reserve data → APY
+    // getReserveData has named returns, but via type-erased ABI viem may return an array.
+    // Index 2 = currentLiquidityRate, index 3 = currentBorrowRate (per ABI definition order).
     const markets: Record<Sym, { supplyAPY: number; borrowAPY: number }> = {} as never;
     for (const a of ASSETS) {
-      const rd = dec(POOL_ABI, "getReserveData") as { currentLiquidityRate: bigint; currentBorrowRate: bigint };
+      const rd = dec(POOL_ABI, "getReserveData") as unknown;
+      const rdArr = rd as bigint[];
+      const liqRate  = rdArr[2] ?? (rd as Record<string, bigint>).currentLiquidityRate ?? 0n;
+      const borRate  = rdArr[3] ?? (rd as Record<string, bigint>).currentBorrowRate    ?? 0n;
       markets[a.sym as Sym] = {
-        supplyAPY: Number(rd.currentLiquidityRate) / 1e27 * 100,
-        borrowAPY: Number(rd.currentBorrowRate)    / 1e27 * 100,
+        supplyAPY: Number(liqRate) / 1e27 * 100,
+        borrowAPY: Number(borRate) / 1e27 * 100,
       };
     }
 
