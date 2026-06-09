@@ -192,10 +192,11 @@ async function fetchPortfolioContext(walletAddr: string): Promise<PortfolioConte
     availableBorrowsUSD: bigint; healthFactor: bigint;
   };
 
-  const hf          = Number(acct.healthFactor) / 1e18;
+  const hfRaw       = Number(acct.healthFactor) / 1e18;
+  const hf          = isFinite(hfRaw) ? hfRaw : 999;  // uint256.max = no debt = infinite HF
   const debtUSD     = Number(acct.totalDebtUSD) / 1e18;
   const collUSD     = Number(acct.totalRawCollateralUSD) / 1e18;
-  const weightedColl= hf * debtUSD;
+  const weightedColl= debtUSD > 0 ? hf * debtUSD : 0;  // avoid Infinity * 0 = NaN
   const availBorrow = Number(acct.availableBorrowsUSD) / 1e18;
 
   // [1-3] Reserve data → APY
@@ -409,9 +410,10 @@ async function getHFBatch(wallets: string[]): Promise<Map<string, { hf: number; 
   const positions: UserPosition[] = await getPositionsBatch(wallets as `0x${string}`[]);
   const map = new Map<string, { hf: number; debtUSD: number; weightedColl: number }>();
   for (const p of positions) {
-    const hf      = Number(p.healthFactor) / 1e18;
+    const hfRaw   = Number(p.healthFactor) / 1e18;
+    const hf      = isFinite(hfRaw) ? hfRaw : 999;
     const debtUSD = Number(p.totalDebtUSD) / 1e18;
-    map.set(p.address.toLowerCase(), { hf, debtUSD, weightedColl: hf * debtUSD });
+    map.set(p.address.toLowerCase(), { hf, debtUSD, weightedColl: debtUSD > 0 ? hf * debtUSD : 0 });
   }
   return map;
 }
