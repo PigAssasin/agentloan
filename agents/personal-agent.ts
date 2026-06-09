@@ -811,6 +811,7 @@ let isRunning = false;
 
 async function runCycle() {
   const users = await getEnabledUsers();
+  console.log(`[cycle] ${new Date().toISOString().slice(11,19)} — ${users.length} user(s)`);
   if (!users.length) return;
 
   // Quick HF scan via Multicall3 (cheap, no LLM)
