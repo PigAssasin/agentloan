@@ -326,8 +326,18 @@ async function decideLLM(user: UserSub, ctx: PortfolioContext): Promise<Decision
 
   const loopNet = (sym: AssetSym) => (markets[sym].supplyAPY - markets[sym].borrowAPY).toFixed(2);
 
+  const { prices } = ctx;
+  const cleanMemories = (memories ?? [])
+    .map(m => m.content.replace(/→NaN/g, "→unknown").replace(/NaN/g, "?"))
+    .filter(c => c.trim().length > 0);
+
   const prompt = `You are an autonomous DeFi yield optimizer for wallet ${user.wallet_address.slice(0, 10)}...
 You manage this wallet 24/7. Make the best risk-adjusted decision RIGHT NOW.
+
+═══ PRICES ═══
+xUSDC   = $1.00
+xEURC   = $${prices.xEURC.toFixed(4)}
+xclrBTC = $${prices.xclrBTC.toLocaleString("en-US", { maximumFractionDigits: 0 })}
 
 ═══ MARKET RATES ═══
 Asset    │ Supply APY │ Borrow APY │ Net if loop
@@ -337,7 +347,7 @@ xEURC    │  ${fmt(markets.xEURC.supplyAPY)}%      │  ${fmt(markets.xEURC.bor
 xclrBTC  │  ${fmt(markets.xclrBTC.supplyAPY)}%      │  ${fmt(markets.xclrBTC.borrowAPY)}%      │  ${loopNet("xclrBTC")}%
 
 ═══ POSITION ═══
-Health Factor : ${fmt(hf)} (target: ${user.hf_target}, safe zone: > ${(user.hf_target + 0.3).toFixed(2)})
+Health Factor : ${fmt(hf)} (target: ${user.hf_target}, supply threshold: > ${user.hf_target.toFixed(2)})
 Total Debt    : ${fmtUSD(debtUSD)}
 Collateral    : ${fmtUSD(weightedCollUSD)}
 Avail Borrow  : ${fmtUSD(availableBorrowsUSD)}
@@ -352,14 +362,14 @@ xclrBTC : ${fmtUSD(wallet.xclrBTC)}
 Supplied: xUSDC ${fmtUSD(supplied.xUSDC)} | xEURC ${fmtUSD(supplied.xEURC)} | xclrBTC ${fmtUSD(supplied.xclrBTC)}
 Borrowed: xUSDC ${fmtUSD(borrowed.xUSDC)} | xEURC ${fmtUSD(borrowed.xEURC)} | xclrBTC ${fmtUSD(borrowed.xclrBTC)}
 
-═══ MEMORY ═══
-${(memories ?? []).map(m => `- ${m.content}`).join("\n") || "- No history yet"}
+═══ RECENT ACTIONS (latest first) ═══
+${cleanMemories.length ? cleanMemories.map(c => `- ${c}`).join("\n") : "- No history yet"}
 
 ═══ RULES ═══
 1. NEVER let HF drop below target + 0.20 after any action
 2. Keep wallet reserve = 1.2× amount needed to repay to target from current HF
 3. Loop borrow: ONLY suggest (notify_borrow) if net loop > +0.3% AND HF > target + 0.5
-4. Supply idle assets if HF > target + 0.3 (even at 0% APY beats doing nothing)
+4. Supply idle assets if HF > target (supplying adds collateral, HF only improves)
 5. If net yield is deeply negative and HF is safe, consider repaying debt
 
 ═══ ACTIONS ═══
@@ -599,8 +609,9 @@ async function executeRepay(user: UserSub, ctx: PortfolioContext, decision: Deci
   await logAction(user.wallet_address, decision.action, {
     reason: decision.reason, amountUsd: repaidUSD, hfBefore: hf, hfAfter, txHash: hash, success: true,
   });
+  const hfAfterStr = isFinite(hfAfter) && hfAfter < 999 ? hfAfter.toFixed(2) : "unknown";
   await saveMemory(user.wallet_address,
-    `${decision.action}: $${repaidUSD.toFixed(0)} ${debtToken.sym} repaid. HF ${hf.toFixed(2)}→${hfAfter.toFixed(2)}. ${decision.reason}`
+    `${decision.action}: $${repaidUSD.toFixed(0)} ${debtToken.sym} repaid. HF ${hf.toFixed(2)}→${hfAfterStr}. ${decision.reason}`
   );
   await notifyUser(user.wallet_address, [
     `⚡ <b>Agent protected your position</b>`,
