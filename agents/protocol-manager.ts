@@ -301,13 +301,14 @@ const PYTH_ABI = parseAbi([
 
 async function getOracleAgeSeconds(priceId: string): Promise<number> {
   try {
+    // Pyth returns a struct decoded as a tuple — access publishTime by index [3]
     const result = await publicClient.readContract({
       address:      PYTH_ADDRESS,
       abi:          PYTH_ABI,
       functionName: "getPriceUnsafe",
       args:         [priceId as `0x${string}`],
-    }) as { price: bigint; conf: bigint; expo: bigint; publishTime: bigint };
-    return Math.max(0, Math.floor(Date.now() / 1000) - Number(result.publishTime));
+    }) as unknown as [bigint, bigint, bigint, bigint]; // [price, conf, expo, publishTime]
+    return Math.max(0, Math.floor(Date.now() / 1000) - Number(result[3]));
   } catch {
     return 9999;
   }
