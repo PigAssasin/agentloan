@@ -377,8 +377,13 @@ Respond JSON only: {"action":"...","amount_usd":0,"reason":"..."}`;
     const start = resp.text.indexOf("{");
     const end   = resp.text.lastIndexOf("}");
     if (start < 0 || end < 0) throw new Error("no JSON");
-    const parsed = JSON.parse(resp.text.slice(start, end + 1)) as Decision;
-    // Validate action is known
+    const raw = JSON.parse(resp.text.slice(start, end + 1));
+    // Normalize snake_case → camelCase (LLM returns amount_usd, interface expects amountUsd)
+    const parsed: Decision = {
+      action:    raw.action,
+      amountUsd: raw.amountUsd ?? raw.amount_usd ?? 0,
+      reason:    raw.reason ?? "",
+    };
     const validActions: ActionType[] = ["emergency_protect","repay","supply_usdc","supply_eurc","supply_btc","withdraw_usdc","notify_borrow","skip"];
     if (!validActions.includes(parsed.action)) throw new Error(`unknown action: ${parsed.action}`);
     return parsed;
