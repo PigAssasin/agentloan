@@ -287,8 +287,9 @@ function decideRuleBased(user: UserSub, ctx: PortfolioContext): Decision {
     return { action: "repay", amountUsd: repayUSD, reason: `HF ${hf.toFixed(2)} < target ${user.hf_target} (rule-based)` };
   }
 
-  // Priority 2: supply idle assets when HF is safe (or no debt)
-  if (hf > user.hf_target + 0.3 || debtUSD === 0) {
+  // Priority 2: supply idle assets — supplying adds collateral so HF only improves.
+  // Threshold: above target (not in emergency) is enough to allow supply.
+  if (hf > user.hf_target || debtUSD === 0) {
     if (wallet.xUSDC >= 10)   return { action: "supply_usdc",  amountUsd: wallet.xUSDC,   reason: `Idle $${wallet.xUSDC.toFixed(0)} xUSDC, HF safe` };
     if (wallet.xEURC >= 10)   return { action: "supply_eurc",  amountUsd: wallet.xEURC,   reason: `Idle $${wallet.xEURC.toFixed(0)} xEURC, HF safe` };
     if (wallet.xclrBTC >= 10) return { action: "supply_btc",   amountUsd: wallet.xclrBTC, reason: `Idle $${wallet.xclrBTC.toFixed(0)} xclrBTC, HF safe` };
