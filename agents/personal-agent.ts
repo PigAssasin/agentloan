@@ -1008,18 +1008,24 @@ async function runCycle() {
     if (urgency >= 3) {
       const repayUSD = Math.max(0, ctx.debtUSD - ctx.weightedCollUSD / (user.hf_target + 0.2));
       decision = { action: "emergency_protect", amountUsd: repayUSD, reason: `HF ${ctx.hf.toFixed(2)} < 1.05 — emergency` };
-    } else if (shouldCallLLM(user)) {
-      decision = await decideLLM(user, ctx);
-      await updateLastLLMCall(user.wallet_address);
     } else {
+      // Rule-based always runs first — handles repay/supply/rebalance instantly without LLM.
+      // LLM only fires when rule-based has nothing to do (skip) and cooldown has passed.
       decision = decideRuleBased(user, ctx);
-      // Rule-based doesn't know about borrow opportunities — check manually
+
       if (decision.action === "skip") {
-        const bestNet = Math.max(...(["xUSDC","xEURC","xclrBTC"] as AssetSym[]).map(sym =>
-          ctx.markets[sym].supplyAPY - ctx.markets[sym].borrowAPY
-        ));
-        if (bestNet > 0.3 && ctx.hf > user.hf_target + 0.5 && ctx.availableBorrowsUSD > 1000) {
-          decision = { action: "notify_borrow", amountUsd: ctx.availableBorrowsUSD, reason: `Net loop +${bestNet.toFixed(2)}%` };
+        if (shouldCallLLM(user)) {
+          decision = await decideLLM(user, ctx);
+          await updateLastLLMCall(user.wallet_address);
+        }
+        // Rule-based doesn't know about borrow opportunities — check manually
+        if (decision.action === "skip") {
+          const bestNet = Math.max(...(["xUSDC","xEURC","xclrBTC"] as AssetSym[]).map(sym =>
+            ctx.markets[sym].supplyAPY - ctx.markets[sym].borrowAPY
+          ));
+          if (bestNet > 0.3 && ctx.hf > user.hf_target + 0.5 && ctx.availableBorrowsUSD > 1000) {
+            decision = { action: "notify_borrow", amountUsd: ctx.availableBorrowsUSD, reason: `Net loop +${bestNet.toFixed(2)}%` };
+          }
         }
       }
     }
