@@ -31,7 +31,7 @@ export const ARC_TESTNET_CONTRACTS = {
   PRICE_ORACLE:          "0x440B0f69AADd464d88ED205191ed1a45374bCCF6" as `0x${string}`, // PriceOraclePyth v3 — EUR 30d staleness
   INTEREST_RATE_STRATEGY:"0x22B2A153F7694e49096ef91D627a80c5b6602Ffd" as `0x${string}`,
 
-  AGENT_EXECUTOR:        "0x6B2972b06E46596F7f7cdD2Eb02DA43F5Fa2DbE2" as `0x${string}`, // v2: multi-asset (xUSDC/xEURC/xclrBTC)
+  AGENT_EXECUTOR:        "0x532aA90aB8B5Fbc795294D15A0557dD51a9a2A47" as `0x${string}`, // v2.1: multi-asset + repayTokenFromWallet
 
   // Mock testnet tokens — 24h on-chain cooldown per wallet
   X_USDC:   "0xFa090bd1A524D861542888B6c5e7965dde1F4f35" as `0x${string}`,

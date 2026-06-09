@@ -38,6 +38,7 @@ contract AgentExecutor is Ownable {
     event TokenYieldDeployed(address indexed user, address indexed token, uint256 amount);
     event TokenYieldWithdrawn(address indexed user, address indexed token, uint256 amount);
     event EmergencyProtected(address indexed user, uint256 repayAmount);
+    event TokenRepaidFromWallet(address indexed user, address indexed token, uint256 amount);
 
     error NotAgent();
     error UnsupportedToken(address token);
@@ -143,5 +144,21 @@ contract AgentExecutor is Ownable {
         if (amount > supplyBal) revert InsufficientSupply(supplyBal, amount);
         pool.withdrawFor(user, token, amount, user);
         emit TokenYieldWithdrawn(user, token, amount);
+    }
+
+    /**
+     * Pull any whitelisted token from user wallet → repay debt for that token.
+     * Handles non-xUSDC debt (xEURC, xclrBTC) when the user has the token in wallet.
+     * Requires: user approved `token` to this contract.
+     */
+    function repayTokenFromWallet(
+        address user,
+        address token,
+        uint256 amount
+    ) external onlyAgent onlySupported(token) {
+        IERC20(token).safeTransferFrom(user, address(this), amount);
+        IERC20(token).forceApprove(address(pool), amount);
+        pool.repayFor(user, token, amount);
+        emit TokenRepaidFromWallet(user, token, amount);
     }
 }

@@ -65,9 +65,9 @@ const EXECUTOR_ABI = parseAbi([
   "function emergencyProtect(address user, uint256 repayAmount) external",
   "function repayFromWallet(address user, uint256 repayAmount) external",
   "function deployToYield(address user, uint256 amount) external",
-  // v2 — only works after AgentExecutor v2 is deployed
   "function deployTokenToYield(address user, address token, uint256 amount) external",
   "function withdrawTokenFromYield(address user, address token, uint256 amount) external",
+  "function repayTokenFromWallet(address user, address token, uint256 amount) external",
 ]);
 
 const POOL_ABI = parseAbi([
@@ -85,6 +85,10 @@ const ERC20_ABI = parseAbi([
 
 const REPUTATION_ABI = parseAbi([
   "function giveFeedback(uint256,int128,uint8,string,string,string,string,bytes32) external",
+]);
+
+const PRICE_ORACLE_ABI = parseAbi([
+  "function getPrice(address token) external view returns (uint256)",
 ]);
 
 const MULTICALL3_ADDR = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
@@ -137,9 +141,13 @@ interface PortfolioContext {
   wallet:               Record<AssetSym, number>;   // USD value
   walletRaw:            Record<AssetSym, bigint>;   // raw on-chain amount
   supplied:             Record<AssetSym, number>;   // USD value in pool
+  suppliedRaw:          Record<AssetSym, bigint>;   // raw on-chain amount in pool
   borrowed:             Record<AssetSym, number>;   // USD value in pool
+  borrowedRaw:          Record<AssetSym, bigint>;   // raw on-chain amount borrowed
   netYieldPerYear:      number;                     // USD/yr (can be negative)
-  executorAllowance:    bigint;                     // xUSDC approved to executor
+  executorAllowance:    bigint;                     // xUSDC approved to executor (backward compat)
+  allowances:           Record<AssetSym, bigint>;   // all tokens approved to executor
+  prices:               Record<AssetSym, number>;   // USD price per token unit
 }
 
 type ActionType =
@@ -149,6 +157,7 @@ type ActionType =
   | "supply_eurc"
   | "supply_btc"
   | "withdraw_usdc"
+  | "rebalance"
   | "notify_borrow"
   | "skip";
 
@@ -161,24 +170,32 @@ interface Decision {
 // ── Portfolio context fetcher ────────────────────────────────────────────────
 
 async function fetchPortfolioContext(walletAddr: string): Promise<PortfolioContext> {
-  const w = walletAddr as `0x${string}`;
-  const pool = ARC_TESTNET_CONTRACTS.LENDING_POOL;
+  const w        = walletAddr as `0x${string}`;
+  const pool     = ARC_TESTNET_CONTRACTS.LENDING_POOL;
   const executor = ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR;
+  const oracle   = ARC_TESTNET_CONTRACTS.PRICE_ORACLE;
 
-  // Build multicall batch: 13 calls, 1 RPC round-trip
-  const calls: { target: `0x${string}`; allowFailure: boolean; callData: `0x${string}` }[] = [
-    // [0] getUserAccountData
-    { target: pool, allowFailure: false, callData: encodeFunctionData({ abi: POOL_ABI, functionName: "getUserAccountData", args: [w] }) },
-    // [1-3] getReserveData per asset
-    ...ASSETS.map(a => ({ target: pool, allowFailure: true, callData: encodeFunctionData({ abi: POOL_ABI, functionName: "getReserveData", args: [a.addr] }) })),
-    // [4-6] walletBalance per asset
-    ...ASSETS.map(a => ({ target: a.addr, allowFailure: true, callData: encodeFunctionData({ abi: ERC20_ABI, functionName: "balanceOf", args: [w] }) })),
-    // [7-9] getUserSupplyBalance per asset
-    ...ASSETS.map(a => ({ target: pool, allowFailure: true, callData: encodeFunctionData({ abi: POOL_ABI, functionName: "getUserSupplyBalance", args: [a.addr, w] }) })),
-    // [10-12] getUserBorrowBalance per asset
-    ...ASSETS.map(a => ({ target: pool, allowFailure: true, callData: encodeFunctionData({ abi: POOL_ABI, functionName: "getUserBorrowBalance", args: [a.addr, w] }) })),
-    // [13] xUSDC allowance to executor
-    { target: ARC_TESTNET_CONTRACTS.X_USDC, allowFailure: true, callData: encodeFunctionData({ abi: ERC20_ABI, functionName: "allowance", args: [w, executor] }) },
+  // 18-call Multicall3 batch — 1 RPC round-trip
+  // [0]     getUserAccountData
+  // [1-3]   getReserveData × 3
+  // [4-6]   balanceOf (wallet) × 3
+  // [7-9]   getUserSupplyBalance × 3
+  // [10-12] getUserBorrowBalance × 3
+  // [13-15] allowance (xUSDC/xEURC/xclrBTC → executor) × 3
+  // [16]    getPrice(xclrBTC) — real oracle price
+  // [17]    getPrice(xEURC)   — real oracle price
+  const enc = <T extends readonly unknown[]>(abi: T, fn: string, args: unknown[]) =>
+    encodeFunctionData({ abi: abi as Parameters<typeof encodeFunctionData>[0]["abi"], functionName: fn, args } as Parameters<typeof encodeFunctionData>[0]);
+
+  const calls = [
+    { target: pool,   allowFailure: true, callData: enc(POOL_ABI, "getUserAccountData", [w]) },
+    ...ASSETS.map(a => ({ target: pool,   allowFailure: true, callData: enc(POOL_ABI,   "getReserveData",        [a.addr]) })),
+    ...ASSETS.map(a => ({ target: a.addr, allowFailure: true, callData: enc(ERC20_ABI,  "balanceOf",             [w]) })),
+    ...ASSETS.map(a => ({ target: pool,   allowFailure: true, callData: enc(POOL_ABI,   "getUserSupplyBalance",   [a.addr, w]) })),
+    ...ASSETS.map(a => ({ target: pool,   allowFailure: true, callData: enc(POOL_ABI,   "getUserBorrowBalance",   [a.addr, w]) })),
+    ...ASSETS.map(a => ({ target: a.addr, allowFailure: true, callData: enc(ERC20_ABI,  "allowance",             [w, executor]) })),
+    { target: oracle, allowFailure: true, callData: enc(PRICE_ORACLE_ABI, "getPrice", [ARC_TESTNET_CONTRACTS.X_CLR_BTC]) },
+    { target: oracle, allowFailure: true, callData: enc(PRICE_ORACLE_ABI, "getPrice", [ARC_TESTNET_CONTRACTS.X_EURC]) },
   ];
 
   const results = await publicClient.readContract({
@@ -186,111 +203,83 @@ async function fetchPortfolioContext(walletAddr: string): Promise<PortfolioConte
     functionName: "aggregate3", args: [calls],
   }) as Array<{ success: boolean; returnData: `0x${string}` }>;
 
-  // [0] Account data
-  const acct = decodeFunctionResult({ abi: POOL_ABI, functionName: "getUserAccountData", data: results[0].returnData }) as unknown as {
-    totalRawCollateralUSD: bigint; totalDebtUSD: bigint;
-    availableBorrowsUSD: bigint; healthFactor: bigint;
-  };
+  function tryDecode<T>(abi: readonly unknown[], fn: string, idx: number, fallback: T): T {
+    const r = results[idx];
+    if (!r?.success || !r.returnData || r.returnData === "0x") return fallback;
+    try { return decodeFunctionResult({ abi: abi as Parameters<typeof decodeFunctionResult>[0]["abi"], functionName: fn, data: r.returnData }) as T; }
+    catch { return fallback; }
+  }
 
-  const hfRaw       = Number(acct.healthFactor) / 1e18;
-  const hf          = isFinite(hfRaw) ? hfRaw : 999;  // uint256.max = no debt = infinite HF
-  const debtUSD     = Number(acct.totalDebtUSD) / 1e18;
-  const collUSD     = Number(acct.totalRawCollateralUSD) / 1e18;
-  const weightedColl= debtUSD > 0 ? hf * debtUSD : 0;  // avoid Infinity * 0 = NaN
-  const availBorrow = Number(acct.availableBorrowsUSD) / 1e18;
+  // [0] Account data (array: totalCollUSD, totalRawCollUSD, totalDebtUSD, availBorrows, healthFactor)
+  const acctArr = tryDecode<bigint[]>(POOL_ABI, "getUserAccountData", 0, [0n,0n,0n,0n,0n]);
+  const hfRaw       = Number(acctArr[4] ?? 0n) / 1e18;
+  const hf          = isFinite(hfRaw) && hfRaw < 10000 ? hfRaw : 999;
+  const debtUSD     = Number(acctArr[2] ?? 0n) / 1e18;
+  const weightedColl= debtUSD > 0 ? hf * debtUSD : 0;
+  const availBorrow = Number(acctArr[3] ?? 0n) / 1e18;
 
   // [1-3] Reserve data → APY
   const markets = {} as Record<AssetSym, MarketRate>;
   ASSETS.forEach((a, i) => {
-    const r = results[1 + i];
-    if (!r.success) { markets[a.sym] = { supplyAPY: 0, borrowAPY: 0 }; return; }
-    const d = decodeFunctionResult({ abi: POOL_ABI, functionName: "getReserveData", data: r.returnData }) as unknown as {
-      currentLiquidityRate: bigint; currentBorrowRate: bigint;
-    };
+    const rd = tryDecode<unknown>(POOL_ABI, "getReserveData", 1 + i, null);
+    const rdArr = rd as bigint[] | null;
+    const liqRate = rdArr?.[2] ?? (rd as Record<string, bigint> | null)?.currentLiquidityRate ?? 0n;
+    const borRate = rdArr?.[3] ?? (rd as Record<string, bigint> | null)?.currentBorrowRate    ?? 0n;
     markets[a.sym] = {
-      supplyAPY: Number(d.currentLiquidityRate) / 1e25,  // /1e27 * 100
-      borrowAPY: Number(d.currentBorrowRate)    / 1e25,
+      supplyAPY: Number(liqRate) / 1e27 * 100,
+      borrowAPY: Number(borRate) / 1e27 * 100,
     };
   });
 
-  // [4-6] Wallet balances — convert to USD (xUSDC/xEURC: 6dec ~$1, xclrBTC: 8dec need price)
-  // For xclrBTC price: use simple estimation from pool collateral data
-  // BTC price ≈ collateral USD / BTC supplied (rough, good enough for decisions)
+  // [4-6] Wallet balances (raw)
   const walletRaw = {} as Record<AssetSym, bigint>;
-  ASSETS.forEach((a, i) => {
-    const r = results[4 + i];
-    walletRaw[a.sym] = r.success
-      ? decodeFunctionResult({ abi: ERC20_ABI, functionName: "balanceOf", data: r.returnData }) as bigint
-      : 0n;
-  });
+  ASSETS.forEach((a, i) => { walletRaw[a.sym] = tryDecode<bigint>(ERC20_ABI, "balanceOf", 4 + i, 0n); });
 
-  // [7-9] Supplied balances
+  // [7-9] Supplied balances (raw)
   const suppliedRaw = {} as Record<AssetSym, bigint>;
-  ASSETS.forEach((a, i) => {
-    const r = results[7 + i];
-    suppliedRaw[a.sym] = r.success
-      ? decodeFunctionResult({ abi: POOL_ABI, functionName: "getUserSupplyBalance", data: r.returnData }) as bigint
-      : 0n;
-  });
+  ASSETS.forEach((a, i) => { suppliedRaw[a.sym] = tryDecode<bigint>(POOL_ABI, "getUserSupplyBalance", 7 + i, 0n); });
 
-  // [10-12] Borrowed balances
+  // [10-12] Borrowed balances (raw)
   const borrowedRaw = {} as Record<AssetSym, bigint>;
-  ASSETS.forEach((a, i) => {
-    const r = results[10 + i];
-    borrowedRaw[a.sym] = r.success
-      ? decodeFunctionResult({ abi: POOL_ABI, functionName: "getUserBorrowBalance", data: r.returnData }) as bigint
-      : 0n;
-  });
+  ASSETS.forEach((a, i) => { borrowedRaw[a.sym] = tryDecode<bigint>(POOL_ABI, "getUserBorrowBalance", 10 + i, 0n); });
 
-  // [13] xUSDC allowance
-  const allowanceRaw = results[13].success
-    ? decodeFunctionResult({ abi: ERC20_ABI, functionName: "allowance", data: results[13].returnData }) as bigint
-    : 0n;
+  // [13-15] Token allowances to executor
+  const allowances = {} as Record<AssetSym, bigint>;
+  ASSETS.forEach((a, i) => { allowances[a.sym] = tryDecode<bigint>(ERC20_ABI, "allowance", 13 + i, 0n); });
 
-  // Estimate BTC price: if user has xclrBTC in pool, derive from collateral ratio
-  // Fallback: read Pyth oracle (simplified — use $95000 if not available)
-  let btcPriceUSD = 95_000; // fallback
-  try {
-    const btcSupplied = Number(suppliedRaw.xclrBTC) / 1e8;
-    if (btcSupplied > 0.001) {
-      // Use getUserAccountData total collateral vs supplied amounts to estimate
-      // This is approximate — good enough for yield decisions
-      const usdcSupplied = Number(suppliedRaw.xUSDC) / 1e6;
-      const eurcSupplied = Number(suppliedRaw.xEURC) / 1e6;
-      const btcCollUSD   = Math.max(0, collUSD - usdcSupplied - eurcSupplied);
-      if (btcCollUSD > 0) btcPriceUSD = btcCollUSD / btcSupplied;
-    }
-  } catch { /* use fallback */ }
+  // [16-17] Real oracle prices (18 dec USD per token)
+  const btcPriceRaw  = tryDecode<bigint>(PRICE_ORACLE_ABI, "getPrice", 16, 0n);
+  const eurcPriceRaw = tryDecode<bigint>(PRICE_ORACLE_ABI, "getPrice", 17, 0n);
+  const btcPriceUSD  = btcPriceRaw  > 0n ? Number(btcPriceRaw)  / 1e18 : 95_000;
+  const eurcPriceUSD = eurcPriceRaw > 0n ? Number(eurcPriceRaw) / 1e18 : 1.0;
 
-  // Convert to USD
+  const prices: Record<AssetSym, number> = { xUSDC: 1.0, xEURC: eurcPriceUSD, xclrBTC: btcPriceUSD };
+
   const toUSD = (raw: bigint, sym: AssetSym): number => {
-    if (sym === "xclrBTC") return (Number(raw) / 1e8) * btcPriceUSD;
-    return Number(raw) / 1e6; // 6 dec stables ~$1
+    if (sym === "xclrBTC") return (Number(raw) / 1e8) * prices.xclrBTC;
+    return (Number(raw) / 1e6) * prices[sym];
   };
 
-  const wallet   = Object.fromEntries(ASSETS.map(a => [a.sym, toUSD(walletRaw[a.sym], a.sym)])) as Record<AssetSym, number>;
+  const wallet   = Object.fromEntries(ASSETS.map(a => [a.sym, toUSD(walletRaw[a.sym],   a.sym)])) as Record<AssetSym, number>;
   const supplied = Object.fromEntries(ASSETS.map(a => [a.sym, toUSD(suppliedRaw[a.sym], a.sym)])) as Record<AssetSym, number>;
   const borrowed = Object.fromEntries(ASSETS.map(a => [a.sym, toUSD(borrowedRaw[a.sym], a.sym)])) as Record<AssetSym, number>;
 
-  // Net yield P&L per year
-  const netYieldPerYear =
-    ASSETS.reduce((acc, a) => {
-      const earn = supplied[a.sym] * markets[a.sym].supplyAPY / 100;
-      const cost = borrowed[a.sym] * markets[a.sym].borrowAPY / 100;
-      return acc + earn - cost;
-    }, 0);
+  const netYieldPerYear = ASSETS.reduce((acc, a) => {
+    return acc + supplied[a.sym] * markets[a.sym].supplyAPY / 100
+               - borrowed[a.sym] * markets[a.sym].borrowAPY / 100;
+  }, 0);
 
   return {
     hf, debtUSD, weightedCollUSD: weightedColl, availableBorrowsUSD: availBorrow,
-    markets, wallet, walletRaw, supplied, borrowed,
-    netYieldPerYear, executorAllowance: allowanceRaw,
+    markets, wallet, walletRaw, supplied, suppliedRaw, borrowed, borrowedRaw,
+    netYieldPerYear, executorAllowance: allowances.xUSDC, allowances, prices,
   };
 }
 
 // ── Rule-based decision ──────────────────────────────────────────────────────
 
 function decideRuleBased(user: UserSub, ctx: PortfolioContext): Decision {
-  const { hf, debtUSD, weightedCollUSD, wallet, markets } = ctx;
+  const { hf, debtUSD, weightedCollUSD, wallet, markets, supplied } = ctx;
 
   // Priority 1: repay if HF below target
   if (debtUSD > 0 && hf < user.hf_target) {
@@ -303,6 +292,16 @@ function decideRuleBased(user: UserSub, ctx: PortfolioContext): Decision {
     if (wallet.xUSDC >= 10)   return { action: "supply_usdc",  amountUsd: wallet.xUSDC,   reason: `Idle $${wallet.xUSDC.toFixed(0)} xUSDC, HF safe` };
     if (wallet.xEURC >= 10)   return { action: "supply_eurc",  amountUsd: wallet.xEURC,   reason: `Idle $${wallet.xEURC.toFixed(0)} xEURC, HF safe` };
     if (wallet.xclrBTC >= 10) return { action: "supply_btc",   amountUsd: wallet.xclrBTC, reason: `Idle $${wallet.xclrBTC.toFixed(0)} xclrBTC, HF safe` };
+  }
+
+  // Priority 3: rebalance — notify if APY gap > 1% between supplied assets
+  const suppliedAssets = ASSETS.filter(a => supplied[a.sym] >= 10);
+  if (suppliedAssets.length >= 2) {
+    const apys    = suppliedAssets.map(a => markets[a.sym].supplyAPY);
+    const apyGap  = Math.max(...apys) - Math.min(...apys);
+    if (apyGap >= 1.0) {
+      return { action: "rebalance", amountUsd: 0, reason: `APY gap ${apyGap.toFixed(2)}% between supplied assets` };
+    }
   }
 
   return { action: "skip", amountUsd: 0, reason: "No action needed" };
@@ -349,7 +348,7 @@ xEURC   : ${fmtUSD(wallet.xEURC)}
 xclrBTC : ${fmtUSD(wallet.xclrBTC)}
 
 ═══ POOL POSITIONS ═══
-Supplied: xUSDC ${fmtUSD(supplied.xUSDC)} | xEURC ${fmtUSD(supplied.xEURC)} | xclrBTC ${fmtUSD(wallet.xclrBTC)}
+Supplied: xUSDC ${fmtUSD(supplied.xUSDC)} | xEURC ${fmtUSD(supplied.xEURC)} | xclrBTC ${fmtUSD(supplied.xclrBTC)}
 Borrowed: xUSDC ${fmtUSD(borrowed.xUSDC)} | xEURC ${fmtUSD(borrowed.xEURC)} | xclrBTC ${fmtUSD(borrowed.xclrBTC)}
 
 ═══ MEMORY ═══
@@ -366,8 +365,9 @@ ${(memories ?? []).map(m => `- ${m.content}`).join("\n") || "- No history yet"}
 supply_usdc(amount_usd)     — deploy idle xUSDC to pool
 supply_eurc(amount_usd)     — deploy idle xEURC to pool
 supply_btc(amount_usd)      — deploy idle xclrBTC to pool
-repay(amount_usd)           — repay xUSDC debt, improves HF
+repay(amount_usd)           — repay debt (auto-detects token), improves HF
 withdraw_usdc(amount_usd)   — pull xUSDC from pool back to wallet
+rebalance                   — notify user to move supply to higher-APY asset
 notify_borrow(amount_usd)   — Telegram suggestion to borrow (cannot execute)
 skip                        — no action
 
@@ -385,7 +385,7 @@ Respond JSON only: {"action":"...","amount_usd":0,"reason":"..."}`;
       amountUsd: raw.amountUsd ?? raw.amount_usd ?? 0,
       reason:    raw.reason ?? "",
     };
-    const validActions: ActionType[] = ["emergency_protect","repay","supply_usdc","supply_eurc","supply_btc","withdraw_usdc","notify_borrow","skip"];
+    const validActions: ActionType[] = ["emergency_protect","repay","supply_usdc","supply_eurc","supply_btc","withdraw_usdc","rebalance","notify_borrow","skip"];
     if (!validActions.includes(parsed.action)) throw new Error(`unknown action: ${parsed.action}`);
     return parsed;
   } catch (e) {
@@ -453,6 +453,19 @@ async function notifyUser(wallet: string, text: string) {
   }).catch(() => {});
 }
 
+// Rate limiter for non-critical Telegram notifications (pending approvals, rebalance, etc.)
+// Prevents spamming the same event type every 20 blocks.
+const notifCooldown = new Map<string, number>(); // key: `${wallet}_${event}` → last sent ms
+const NOTIF_COOLDOWN_MS = 30 * 60 * 1000; // 30 min
+
+function canNotify(wallet: string, event: string): boolean {
+  const key  = `${wallet}_${event}`;
+  const last = notifCooldown.get(key) ?? 0;
+  if (Date.now() - last < NOTIF_COOLDOWN_MS) return false;
+  notifCooldown.set(key, Date.now());
+  return true;
+}
+
 async function logAction(wallet: string, action: string, data: {
   reason: string; amountUsd?: number; hfBefore?: number; hfAfter?: number;
   txHash?: string; success: boolean; error?: string;
@@ -501,54 +514,101 @@ async function readHFAfter(wallet: string): Promise<number> {
 // ── Execute helpers ──────────────────────────────────────────────────────────
 
 async function executeRepay(user: UserSub, ctx: PortfolioContext, decision: Decision) {
-  const { hf, debtUSD, weightedCollUSD } = ctx;
-  const repayAmount = calcRepayAmount(debtUSD, weightedCollUSD, user.hf_target + 0.15);
+  const { hf, debtUSD, weightedCollUSD, prices } = ctx;
 
-  if (hf >= user.hf_target + 0.10 || repayAmount < parseUnits("10", 6)) {
-    console.log(`  [skip] ${user.wallet_address.slice(0,10)}... HF ${hf.toFixed(3)} safe or repay tiny`);
+  if (hf >= user.hf_target + 0.10) {
+    console.log(`  [skip] ${user.wallet_address.slice(0,10)}... HF ${hf.toFixed(3)} safe`);
     return;
   }
 
-  const walletBal = ctx.walletRaw.xUSDC;
-  const actual    = repayAmount > ctx.executorAllowance ? ctx.executorAllowance : repayAmount;
+  const repayUSD = Math.max(0, debtUSD - weightedCollUSD / (user.hf_target + 0.15));
+  if (repayUSD < 10) {
+    console.log(`  [skip] ${user.wallet_address.slice(0,10)}... repay tiny (<$10)`);
+    return;
+  }
 
-  if (repayAmount > 0n && Number(actual) / Number(repayAmount) < MIN_COVERAGE) {
+  // Find which token has the most USD debt — repay that one first
+  const debtToken = ASSETS
+    .map(a => ({ ...a, debtUSD: ctx.borrowed[a.sym], debtRaw: ctx.borrowedRaw[a.sym] }))
+    .filter(d => d.debtUSD > 0)
+    .sort((a, b) => b.debtUSD - a.debtUSD)[0];
+
+  if (!debtToken) return;
+
+  const tokenDec    = debtToken.sym === "xclrBTC" ? 8 : 6;
+  const tokenPrice  = prices[debtToken.sym];
+  const repayRaw    = debtToken.sym === "xclrBTC"
+    ? parseUnits((repayUSD / tokenPrice).toFixed(8), 8)
+    : parseUnits((repayUSD / tokenPrice).toFixed(6), 6);
+
+  const tokenAllowance = ctx.allowances[debtToken.sym];
+  const actual         = repayRaw > tokenAllowance ? tokenAllowance : repayRaw;
+
+  if (repayRaw > 0n && Number(actual) / Number(repayRaw) < MIN_COVERAGE) {
     await logAction(user.wallet_address, "skip", { reason: "Insufficient reserve", success: false });
-    await notifyUser(user.wallet_address,
-      `⚠️ Agent cannot act: insufficient reserve.\nNeed $${decision.amountUsd.toFixed(0)}, have $${(Number(ctx.executorAllowance)/1e6).toFixed(0)} approved.\nTop up at agentloan.vercel.app`
-    );
+    if (canNotify(user.wallet_address, `low_reserve_${debtToken.sym}`)) {
+      await notifyUser(user.wallet_address,
+        `⚠️ Agent cannot repay: insufficient ${debtToken.sym} approved.\nNeed $${repayUSD.toFixed(0)}, have ~$${(Number(tokenAllowance) / 10**tokenDec * tokenPrice).toFixed(0)} approved.\nTop up at agentloan.vercel.app`
+      );
+    }
     return;
   }
 
   if (DRY_RUN) {
-    console.log(`  [DRY_RUN] Would repay ${user.wallet_address.slice(0,10)}... $${(Number(actual)/1e6).toFixed(0)}`);
+    console.log(`  [DRY_RUN] Would repay ${user.wallet_address.slice(0,10)}... $${(Number(actual)/10**tokenDec*tokenPrice).toFixed(0)} ${debtToken.sym}`);
     return;
   }
 
-  const functionName = walletBal >= actual ? "repayFromWallet" : "emergencyProtect";
-  const hash = await deployerWallet.writeContract({
-    address: ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, abi: EXECUTOR_ABI,
-    functionName, args: [user.wallet_address as `0x${string}`, actual],
-  });
+  let hash: `0x${string}`;
+
+  if (debtToken.sym === "xUSDC") {
+    // xUSDC: repayFromWallet (if wallet has balance) OR emergencyProtect (withdraw supply + repay)
+    const walletBal    = ctx.walletRaw.xUSDC;
+    const functionName = walletBal >= actual ? "repayFromWallet" : "emergencyProtect";
+    hash = await deployerWallet.writeContract({
+      address: ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, abi: EXECUTOR_ABI,
+      functionName, args: [user.wallet_address as `0x${string}`, actual],
+    });
+  } else {
+    // xEURC / xclrBTC: must repay from wallet (no emergencyProtect equivalent for these)
+    const walletBal = ctx.walletRaw[debtToken.sym];
+    if (walletBal < actual) {
+      if (canNotify(user.wallet_address, `empty_wallet_${debtToken.sym}`)) {
+        await notifyUser(user.wallet_address, [
+          `⚠️ <b>HF at risk: ${hf.toFixed(2)}</b>`,
+          `Need to repay $${repayUSD.toFixed(0)} ${debtToken.sym} but wallet is empty.`,
+          `Add ${debtToken.sym} to wallet at agentloan.vercel.app`,
+        ].join("\n"));
+      }
+      await logAction(user.wallet_address, "skip", { reason: `No ${debtToken.sym} in wallet`, success: false });
+      return;
+    }
+    hash = await deployerWallet.writeContract({
+      address: ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, abi: EXECUTOR_ABI,
+      functionName: "repayTokenFromWallet",
+      args: [user.wallet_address as `0x${string}`, debtToken.addr, actual],
+    });
+  }
+
   await publicClient.waitForTransactionReceipt({ hash });
-  const hfAfter = await readHFAfter(user.wallet_address);
+  const hfAfter   = await readHFAfter(user.wallet_address);
+  const repaidUSD = Number(actual) / 10**tokenDec * tokenPrice;
 
   await logAction(user.wallet_address, decision.action, {
-    reason: decision.reason, amountUsd: Number(actual)/1e6,
-    hfBefore: hf, hfAfter, txHash: hash, success: true,
+    reason: decision.reason, amountUsd: repaidUSD, hfBefore: hf, hfAfter, txHash: hash, success: true,
   });
   await saveMemory(user.wallet_address,
-    `${decision.action}: $${(Number(actual)/1e6).toFixed(0)} repaid. HF ${hf.toFixed(2)}→${hfAfter.toFixed(2)}. ${decision.reason}`
+    `${decision.action}: $${repaidUSD.toFixed(0)} ${debtToken.sym} repaid. HF ${hf.toFixed(2)}→${hfAfter.toFixed(2)}. ${decision.reason}`
   );
   await notifyUser(user.wallet_address, [
     `⚡ <b>Agent protected your position</b>`,
-    `Action: Repaid $${(Number(actual)/1e6).toFixed(0)} xUSDC`,
+    `Action: Repaid $${repaidUSD.toFixed(0)} ${debtToken.sym}`,
     `HF: ${hf.toFixed(2)} → ${hfAfter.toFixed(2)}`,
     `Reason: ${decision.reason}`,
     `<a href="https://testnet.arcscan.app/tx/${hash}">View TX ↗</a>`,
   ].join("\n"));
   await recordReputation("position_protected", hfAfter > hf ? 95 : 20);
-  console.log(`  ✓ ${user.wallet_address.slice(0,10)}... repaid $${(Number(actual)/1e6).toFixed(0)}, HF ${hf.toFixed(2)}→${hfAfter.toFixed(2)}`);
+  console.log(`  ✓ ${user.wallet_address.slice(0,10)}... repaid $${repaidUSD.toFixed(0)} ${debtToken.sym}, HF ${hf.toFixed(2)}→${hfAfter.toFixed(2)}`);
 }
 
 async function executeSupplyUSDC(user: UserSub, ctx: PortfolioContext, decision: Decision) {
@@ -616,13 +676,14 @@ async function executeSupplyToken(user: UserSub, ctx: PortfolioContext, decision
     : parseUnits("1", 6);
 
   if (allowed < minAllowance) {
-    // Notify user to approve — don't fail silently
-    await notifyUser(user.wallet_address, [
-      `💡 <b>Yield opportunity: ${sym}</b>`,
-      `You have $${walletUSD.toFixed(0)} ${sym} idle in wallet`,
-      `To supply it: approve ${sym} to agent at agentloan.vercel.app`,
-      `APY: ${ctx.markets[sym].supplyAPY.toFixed(2)}%`,
-    ].join("\n"));
+    if (canNotify(user.wallet_address, `pending_${sym}`)) {
+      await notifyUser(user.wallet_address, [
+        `💡 <b>Yield opportunity: ${sym}</b>`,
+        `You have $${walletUSD.toFixed(0)} ${sym} idle in wallet`,
+        `To supply it: approve ${sym} to agent at agentloan.vercel.app`,
+        `APY: ${ctx.markets[sym].supplyAPY.toFixed(2)}%`,
+      ].join("\n"));
+    }
     await logAction(user.wallet_address, `supply_${sym.toLowerCase().replace("xclr", "").replace("x", "")}`, {
       reason: `Needs ${sym} approval`, success: false, error: "pending_approval",
     });
@@ -687,6 +748,81 @@ async function executeNotifyBorrow(user: UserSub, ctx: PortfolioContext, decisio
   console.log(`  [notify] ${user.wallet_address.slice(0,10)}... borrow opportunity sent`);
 }
 
+async function executeWithdrawUSDC(user: UserSub, ctx: PortfolioContext, decision: Decision) {
+  const maxWithdrawUSD = ctx.supplied.xUSDC;
+  const withdrawUSD    = Math.min(decision.amountUsd, maxWithdrawUSD);
+
+  if (withdrawUSD < 10) {
+    console.log(`  [skip] ${user.wallet_address.slice(0,10)}... withdraw_usdc $${withdrawUSD.toFixed(0)} < $10`);
+    return;
+  }
+
+  // Safety: ensure HF stays above target after withdrawal (withdrawal reduces collateral)
+  if (ctx.debtUSD > 0) {
+    const newCollUSD = ctx.weightedCollUSD - withdrawUSD;
+    const newHF      = newCollUSD / ctx.debtUSD;
+    if (newHF < user.hf_target + 0.20) {
+      console.log(`  [skip] ${user.wallet_address.slice(0,10)}... withdraw_usdc would bring HF to ${newHF.toFixed(2)}`);
+      return;
+    }
+  }
+
+  const rawAmount = parseUnits(withdrawUSD.toFixed(6), 6);
+
+  if (DRY_RUN) {
+    console.log(`  [DRY_RUN] Would withdraw_usdc ${user.wallet_address.slice(0,10)}... $${withdrawUSD.toFixed(0)}`);
+    return;
+  }
+
+  const hash = await deployerWallet.writeContract({
+    address: ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR, abi: EXECUTOR_ABI,
+    functionName: "withdrawTokenFromYield",
+    args: [user.wallet_address as `0x${string}`, ARC_TESTNET_CONTRACTS.X_USDC, rawAmount],
+  });
+  await publicClient.waitForTransactionReceipt({ hash });
+
+  await logAction(user.wallet_address, "withdraw_usdc", {
+    reason: decision.reason, amountUsd: withdrawUSD, hfBefore: ctx.hf, hfAfter: ctx.hf, txHash: hash, success: true,
+  });
+  await saveMemory(user.wallet_address, `withdraw_usdc: $${withdrawUSD.toFixed(0)} pulled from pool. ${decision.reason}`);
+  await notifyUser(user.wallet_address, [
+    `💸 <b>Agent withdrew xUSDC from pool</b>`,
+    `Amount: $${withdrawUSD.toFixed(0)} xUSDC`,
+    `Reason: ${decision.reason}`,
+    `<a href="https://testnet.arcscan.app/tx/${hash}">View TX ↗</a>`,
+  ].join("\n"));
+  await recordReputation("yield_withdrawn", 70);
+  console.log(`  ✓ ${user.wallet_address.slice(0,10)}... withdraw_usdc $${withdrawUSD.toFixed(0)}`);
+}
+
+async function executeRebalance(user: UserSub, ctx: PortfolioContext) {
+  // Notify user about APY gap between their supplied positions — agent cannot swap tokens
+  const suppliedAssets = ASSETS.filter(a => ctx.supplied[a.sym] >= 10);
+  if (suppliedAssets.length < 2) return;
+
+  const sorted  = [...suppliedAssets].sort((a, b) => ctx.markets[b.sym].supplyAPY - ctx.markets[a.sym].supplyAPY);
+  const best    = sorted[0];
+  const worst   = sorted[sorted.length - 1];
+  const apyGap  = ctx.markets[best.sym].supplyAPY - ctx.markets[worst.sym].supplyAPY;
+
+  if (apyGap < 1.0) return; // not worth a notification for < 1% gap
+
+  if (!canNotify(user.wallet_address, `rebalance_${worst.sym}_${best.sym}`)) return;
+
+  await notifyUser(user.wallet_address, [
+    `📊 <b>Rebalance opportunity</b>`,
+    `${worst.sym}: ${ctx.markets[worst.sym].supplyAPY.toFixed(2)}% APY ($${ctx.supplied[worst.sym].toFixed(0)} supplied)`,
+    `${best.sym}: ${ctx.markets[best.sym].supplyAPY.toFixed(2)}% APY — ${apyGap.toFixed(2)}% better`,
+    ``,
+    `Agent cannot swap tokens. To rebalance manually: agentloan.vercel.app`,
+  ].join("\n"));
+
+  await logAction(user.wallet_address, "rebalance", {
+    reason: `APY gap ${apyGap.toFixed(2)}%: ${worst.sym}→${best.sym}`, success: true,
+  });
+  console.log(`  [notify] ${user.wallet_address.slice(0,10)}... rebalance ${worst.sym}→${best.sym} +${apyGap.toFixed(2)}%`);
+}
+
 // ── Backtest ─────────────────────────────────────────────────────────────────
 
 function runBacktest() {
@@ -703,8 +839,10 @@ function runBacktest() {
     xclrBTC: { supplyAPY: 0.00, borrowAPY: 3.20 },
   };
 
-  const zeroAssets = { xUSDC: 0, xEURC: 0, xclrBTC: 0 } as Record<AssetSym, number>;
-  const zeroRaw    = { xUSDC: 0n, xEURC: 0n, xclrBTC: 0n } as Record<AssetSym, bigint>;
+  const zeroAssets    = { xUSDC: 0, xEURC: 0, xclrBTC: 0 } as Record<AssetSym, number>;
+  const zeroRaw       = { xUSDC: 0n, xEURC: 0n, xclrBTC: 0n } as Record<AssetSym, bigint>;
+  const mockAllowances = { xUSDC: 200000_000000n, xEURC: 200000_000000n, xclrBTC: 200000_00000000n } as Record<AssetSym, bigint>;
+  const mockPrices     = { xUSDC: 1.0, xEURC: 1.07, xclrBTC: 95_000 } as Record<AssetSym, number>;
 
   const scenarios: Array<{ name: string; ctx: PortfolioContext; expectedAction: ActionType }> = [
     {
@@ -714,8 +852,10 @@ function runBacktest() {
         markets: baseMarkets,
         wallet: { xUSDC: 110000, xEURC: 0, xclrBTC: 0 },
         walletRaw: { xUSDC: 110000_000000n, xEURC: 0n, xclrBTC: 0n },
-        supplied: zeroAssets, borrowed: zeroAssets,
+        supplied: zeroAssets, suppliedRaw: zeroRaw,
+        borrowed: zeroAssets, borrowedRaw: zeroRaw,
         netYieldPerYear: 0, executorAllowance: 200000_000000n,
+        allowances: mockAllowances, prices: mockPrices,
       },
       expectedAction: "supply_usdc",
     },
@@ -726,8 +866,11 @@ function runBacktest() {
         markets: baseMarkets,
         wallet: { xUSDC: 10000, xEURC: 0, xclrBTC: 0 },
         walletRaw: { xUSDC: 10000_000000n, xEURC: 0n, xclrBTC: 0n },
-        supplied: zeroAssets, borrowed: { xUSDC: 50000, xEURC: 0, xclrBTC: 0 },
+        supplied: zeroAssets, suppliedRaw: zeroRaw,
+        borrowed: { xUSDC: 50000, xEURC: 0, xclrBTC: 0 },
+        borrowedRaw: { xUSDC: 50000_000000n, xEURC: 0n, xclrBTC: 0n },
         netYieldPerYear: -1050, executorAllowance: 200000_000000n,
+        allowances: mockAllowances, prices: mockPrices,
       },
       expectedAction: "repay",
     },
@@ -737,8 +880,12 @@ function runBacktest() {
         hf: 2.0, debtUSD: 20000, weightedCollUSD: 40000, availableBorrowsUSD: 23000,
         markets: { xUSDC: { supplyAPY: 3.0, borrowAPY: 2.0 }, xEURC: baseMarkets.xEURC, xclrBTC: baseMarkets.xclrBTC },
         wallet: zeroAssets, walletRaw: zeroRaw,
-        supplied: { xUSDC: 50000, xEURC: 0, xclrBTC: 0 }, borrowed: { xUSDC: 20000, xEURC: 0, xclrBTC: 0 },
+        supplied: { xUSDC: 50000, xEURC: 0, xclrBTC: 0 },
+        suppliedRaw: { xUSDC: 50000_000000n, xEURC: 0n, xclrBTC: 0n },
+        borrowed: { xUSDC: 20000, xEURC: 0, xclrBTC: 0 },
+        borrowedRaw: { xUSDC: 20000_000000n, xEURC: 0n, xclrBTC: 0n },
         netYieldPerYear: 1100, executorAllowance: 0n,
+        allowances: { xUSDC: 0n, xEURC: 0n, xclrBTC: 0n }, prices: mockPrices,
       },
       expectedAction: "notify_borrow",
     },
@@ -749,20 +896,26 @@ function runBacktest() {
         markets: baseMarkets,
         wallet: zeroAssets, walletRaw: zeroRaw,
         supplied: { xUSDC: 110000, xEURC: 0, xclrBTC: 0 },
+        suppliedRaw: { xUSDC: 110000_000000n, xEURC: 0n, xclrBTC: 0n },
         borrowed: { xUSDC: 50000, xEURC: 0, xclrBTC: 0 },
+        borrowedRaw: { xUSDC: 50000_000000n, xEURC: 0n, xclrBTC: 0n },
         netYieldPerYear: -984, executorAllowance: 0n,
+        allowances: { xUSDC: 0n, xEURC: 0n, xclrBTC: 0n }, prices: mockPrices,
       },
       expectedAction: "skip",
     },
     {
-      name: "Scenario 5: HF=1.02 emergency, wallet rỗng — expect emergency_protect",
+      name: "Scenario 5: HF=1.02 emergency, wallet empty — expect emergency_protect",
       ctx: {
         hf: 1.02, debtUSD: 50000, weightedCollUSD: 51000, availableBorrowsUSD: 0,
         markets: baseMarkets,
         wallet: zeroAssets, walletRaw: zeroRaw,
         supplied: { xUSDC: 60000, xEURC: 0, xclrBTC: 0 },
+        suppliedRaw: { xUSDC: 60000_000000n, xEURC: 0n, xclrBTC: 0n },
         borrowed: { xUSDC: 50000, xEURC: 0, xclrBTC: 0 },
+        borrowedRaw: { xUSDC: 50000_000000n, xEURC: 0n, xclrBTC: 0n },
         netYieldPerYear: -1014, executorAllowance: 0n,
+        allowances: { xUSDC: 0n, xEURC: 0n, xclrBTC: 0n }, prices: mockPrices,
       },
       expectedAction: "emergency_protect",
     },
@@ -892,8 +1045,10 @@ async function runCycle() {
           await executeNotifyBorrow(user, ctx, decision);
           break;
         case "withdraw_usdc":
-          // Phase 2 only
-          console.log(`  [v2-pending] withdraw_usdc requires AgentExecutor v2`);
+          await executeWithdrawUSDC(user, ctx, decision);
+          break;
+        case "rebalance":
+          await executeRebalance(user, ctx);
           break;
       }
     } catch (e: any) {
