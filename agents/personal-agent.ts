@@ -496,8 +496,8 @@ async function recordReputation(tag: string, score: number) {
       functionName: "giveFeedback",
       args: [BigInt(AGENT_IDS.PERSONAL_AGENT), BigInt(score), 0, tag, "", "", "", keccak256(toHex(tag))],
     });
-  } catch (e) {
-    console.warn("    [reputation] failed:", (e as Error).message?.slice(0, 60));
+  } catch {
+    // reputation registry occasionally unavailable — safe to ignore
   }
 }
 
@@ -506,8 +506,9 @@ async function readHFAfter(wallet: string): Promise<number> {
     const data = await publicClient.readContract({
       address: ARC_TESTNET_CONTRACTS.LENDING_POOL, abi: POOL_ABI,
       functionName: "getUserAccountData", args: [wallet as `0x${string}`],
-    }) as unknown as { healthFactor: bigint };
-    return Number(data.healthFactor) / 1e18;
+    }) as unknown as bigint[];
+    const hfRaw = Number(data[4]) / 1e18;
+    return isFinite(hfRaw) && hfRaw < 10000 ? hfRaw : 999;
   } catch { return 0; }
 }
 
