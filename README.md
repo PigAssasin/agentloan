@@ -108,22 +108,37 @@ See [signal-agent/README.md](signal-agent/README.md) for the full API reference.
 
 ### Option C — Personal Agent (set and forget)
 
-Go to [agentloan.vercel.app/app](https://agentloan.vercel.app/app) → **AGENTS** tab → approve xUSDC → authorize → activate. Agent monitors your HF 24/7, auto-repays when needed, and deploys idle xUSDC to earn yield.
+Go to [agentloan.vercel.app/app](https://agentloan.vercel.app/app) → **AGENTS** tab → approve tokens → authorize → activate.
+
+The agent runs 24/7 and handles your position automatically:
+
+- **Auto-repay** — if your Health Factor drops below your target, the agent repays debt using your wallet balance or your supplied collateral. Supports xUSDC, xEURC, and xclrBTC debt.
+- **Auto-supply** — idle tokens in your wallet (xUSDC, xEURC, xclrBTC) get deployed to the pool to earn yield automatically.
+- **Auto-withdraw** — if the LLM decides you should pull funds back from the pool, the agent executes it.
+- **Rebalance alerts** — if one asset is earning significantly more APY than another you're supplying, the agent notifies you on Telegram.
+- **Telegram notifications** — every action is reported to your Telegram.
+
+The agent uses Gemini AI to reason about market conditions every 5 minutes. Between LLM calls it runs a fast rule-based check every ~90 seconds.
+
+> This feature is experimental. Approve only amounts you're comfortable with the agent managing.
 
 ---
 
 ## Agent Architecture
 
 ```
-Personal Agent (every block, ERC-8004 #67459)
-  └─ monitors your HF 24/7 — acts when HF < your target
-  └─ Gemini AI with rolling memory context (5-min cooldown)
-  └─ repayFromWallet(): pulls xUSDC from wallet → repays debt
-  └─ deployToYield(): idle xUSDC → pool → earns APY
-  └─ Telegram notifications after every action
+Personal Agent (every ~90s, ERC-8004 #67459)
+  └─ Tier 1: fast HF scan via Multicall3 (18 reads, 1 RPC) every ~90s
+  └─ Tier 2: Gemini AI reasoning with memory context (5-min cooldown)
+  └─ repayFromWallet / repayTokenFromWallet — repays any debt token
+  └─ emergencyProtect — atomic withdraw xUSDC supply + repay
+  └─ deployToYield / deployTokenToYield — idle wallet tokens → pool
+  └─ withdrawTokenFromYield — pulls supply back to wallet
+  └─ AgentExecutor v2.1 at 0x532aA90aB8B5Fbc795294D15A0557dD51a9a2A47
+  └─ Telegram notification after every action (rate-limited)
 
 Coordinator Agent (every 30s, ERC-8004 #34625)
-  └─ scoring function ranks ALL liquidatable positions ($0)
+  └─ scoring function ranks ALL liquidatable positions
   └─ Gemini AI only on real events (price change >1.5% or new critical HF)
   └─ 5-minute minimum between AI calls
 
@@ -144,7 +159,7 @@ Liquidation Bot (every block, ~0.48s, ERC-8004 #30907)
 |---|---|
 | LendingPool v3 | [`0xA5F8E24a5a97e9cA763D0FB4777786B684Aceb9B`](https://testnet.arcscan.app/address/0xA5F8E24a5a97e9cA763D0FB4777786B684Aceb9B) |
 | PriceOraclePyth v3 | [`0x440B0f69AADd464d88ED205191ed1a45374bCCF6`](https://testnet.arcscan.app/address/0x440B0f69AADd464d88ED205191ed1a45374bCCF6) |
-| AgentExecutor v2 | [`0x1e009Ea4e463086bd70fe8F8B0E7FFfa64bD25c6`](https://testnet.arcscan.app/address/0x1e009Ea4e463086bd70fe8F8B0E7FFfa64bD25c6) |
+| AgentExecutor v2.1 | [`0x532aA90aB8B5Fbc795294D15A0557dD51a9a2A47`](https://testnet.arcscan.app/address/0x532aA90aB8B5Fbc795294D15A0557dD51a9a2A47) |
 | InterestRateStrategy | [`0x22B2A153F7694e49096ef91D627a80c5b6602Ffd`](https://testnet.arcscan.app/address/0x22B2A153F7694e49096ef91D627a80c5b6602Ffd) |
 | xUSDC (mock) | [`0xFa090bd1A524D861542888B6c5e7965dde1F4f35`](https://testnet.arcscan.app/address/0xFa090bd1A524D861542888B6c5e7965dde1F4f35) |
 | xEURC (mock) | [`0x11aC6A7f4c3235e4edda971838640bE9e55aC222`](https://testnet.arcscan.app/address/0x11aC6A7f4c3235e4edda971838640bE9e55aC222) |
