@@ -345,6 +345,65 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         );
     }
 
+    // ── View-accrual helpers ──────────────────────────────────────────────────
+    // Mirrors ReserveLogic.calculateLinearInterest but as a pure view — no state write.
+
+    function _viewBorrowIndex(DataTypes.ReserveData storage r) internal view returns (uint256) {
+        uint256 stored = r.borrowIndex;
+        if (r.totalScaledBorrow == 0 || r.currentBorrowRate == 0) return stored;
+        uint256 elapsed = block.timestamp - r.lastUpdateTimestamp;
+        if (elapsed == 0) return stored;
+        uint256 factor = RAY + (uint256(r.currentBorrowRate) * elapsed) / 365 days;
+        return (stored * factor) / RAY;
+    }
+
+    function _viewLiquidityIndex(DataTypes.ReserveData storage r) internal view returns (uint256) {
+        uint256 stored = r.liquidityIndex;
+        if (r.totalScaledSupply == 0 || r.currentLiquidityRate == 0) return stored;
+        uint256 elapsed = block.timestamp - r.lastUpdateTimestamp;
+        if (elapsed == 0) return stored;
+        uint256 factor = RAY + (uint256(r.currentLiquidityRate) * elapsed) / 365 days;
+        return (stored * factor) / RAY;
+    }
+
+    // Same shape as getUserAccountData but accrues interest to block.timestamp without
+    // writing state. Gives accurate HF between state-changing transactions.
+    function getUserAccountDataAccrued(address user)
+        external view returns (DataTypes.UserAccountData memory data)
+    {
+        for (uint256 i = 0; i < reserveList.length; i++) {
+            address token = reserveList[i];
+            DataTypes.ReserveData storage r = reserves[token];
+            uint256 price = oracle.getPrice(token);
+
+            uint256 liqIdx  = _viewLiquidityIndex(r);
+            uint256 supplied = _realTotal(userScaledSupply[token][user], liqIdx);
+            uint256 borrowed = _realTotal(userScaledBorrow[token][user], _viewBorrowIndex(r));
+
+            if (supplied > 0) {
+                uint256 valueUSD = _toUSD(supplied, price, r.decimals);
+                data.totalRawCollateralUSD += valueUSD;
+                data.totalCollateralUSD    += (valueUSD * r.liquidationThreshold) / 10_000;
+                data.availableBorrowsUSD   += (valueUSD * r.ltv) / 10_000;
+            }
+
+            if (borrowed > 0) {
+                data.totalDebtUSD += _toUSD(borrowed, price, r.decimals);
+            }
+        }
+
+        if (data.availableBorrowsUSD > data.totalDebtUSD) {
+            data.availableBorrowsUSD -= data.totalDebtUSD;
+        } else {
+            data.availableBorrowsUSD = 0;
+        }
+
+        data.healthFactor = ValidationLogic.calculateHealthFactor(
+            data.totalCollateralUSD,
+            data.totalDebtUSD
+        );
+    }
+
     // ── Agent Authorization ───────────────────────────────────────────────
     // Mapping: user → agent address → authorized
     mapping(address => mapping(address => bool)) public agentAuthorized;

@@ -196,7 +196,7 @@ async function fetchPortfolioContext(walletAddr: string): Promise<PortfolioConte
     encodeFunctionData({ abi: abi as Parameters<typeof encodeFunctionData>[0]["abi"], functionName: fn, args } as Parameters<typeof encodeFunctionData>[0]);
 
   const calls = [
-    { target: pool,   allowFailure: true, callData: enc(POOL_ABI, "getUserAccountData", [w]) },
+    { target: pool,   allowFailure: true, callData: enc(POOL_ABI, "getUserAccountDataAccrued", [w]) },
     ...ASSETS.map(a => ({ target: pool,   allowFailure: true, callData: enc(POOL_ABI,   "getReserveData",        [a.addr]) })),
     ...ASSETS.map(a => ({ target: a.addr, allowFailure: true, callData: enc(ERC20_ABI,  "balanceOf",             [w]) })),
     ...ASSETS.map(a => ({ target: pool,   allowFailure: true, callData: enc(POOL_ABI,   "getUserSupplyBalance",   [a.addr, w]) })),
@@ -219,7 +219,7 @@ async function fetchPortfolioContext(walletAddr: string): Promise<PortfolioConte
   }
 
   // [0] Account data (array: totalCollUSD, totalRawCollUSD, totalDebtUSD, availBorrows, healthFactor)
-  const acctArr = tryDecode<bigint[]>(POOL_ABI, "getUserAccountData", 0, [0n,0n,0n,0n,0n]);
+  const acctArr = tryDecode<bigint[]>(POOL_ABI, "getUserAccountDataAccrued", 0, [0n,0n,0n,0n,0n]);
   const hfRaw       = Number(acctArr[4] ?? 0n) / 1e18;
   const hf          = isFinite(hfRaw) && hfRaw < 10000 ? hfRaw : 999;
   const debtUSD     = Number(acctArr[2] ?? 0n) / 1e18;

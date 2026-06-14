@@ -111,7 +111,7 @@ export async function getAllBorrowers(): Promise<Address[]> {
 export async function getPositionsBatch(borrowers: Address[]): Promise<UserPosition[]> {
   if (borrowers.length === 0) return [];
 
-  // Encode getUserAccountData(address) calldata for each borrower
+  // Encode getUserAccountDataAccrued(address) calldata for each borrower
   const { encodeFunctionData, decodeFunctionResult } = await import("viem");
 
   const calls = borrowers.map(user => ({
@@ -119,7 +119,7 @@ export async function getPositionsBatch(borrowers: Address[]): Promise<UserPosit
     allowFailure: true,
     callData:     encodeFunctionData({
       abi:          LendingPoolABI as any,
-      functionName: "getUserAccountData",
+      functionName: "getUserAccountDataAccrued",
       args:         [user],
     }),
   }));
@@ -137,7 +137,7 @@ export async function getPositionsBatch(borrowers: Address[]): Promise<UserPosit
     }
     const decoded = decodeFunctionResult({
       abi:          LendingPoolABI as any,
-      functionName: "getUserAccountData",
+      functionName: "getUserAccountDataAccrued",
       data:         r.returnData,
     }) as {
       totalCollateralUSD:    bigint;

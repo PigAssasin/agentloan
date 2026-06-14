@@ -1157,5 +1157,51 @@
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "getUserAccountDataAccrued",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "totalCollateralUSD",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "totalRawCollateralUSD",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "totalDebtUSD",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "availableBorrowsUSD",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "healthFactor",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct DataTypes.UserAccountData",
+        "name": "data",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   }
 ]
