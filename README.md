@@ -115,6 +115,8 @@ The agent runs 24/7 and handles your position automatically:
 - **Auto-repay** — if your Health Factor drops below your target, the agent repays debt using your wallet balance or your supplied collateral. Supports xUSDC, xEURC, and xclrBTC debt.
 - **Auto-supply** — idle tokens in your wallet (xUSDC, xEURC, xclrBTC) get deployed to the pool to earn yield automatically.
 - **Auto-withdraw** — if the LLM decides you should pull funds back from the pool, the agent executes it.
+- **HF warning** — proactive Telegram alert when Health Factor drifts within 0.25 of your target, before the agent needs to act.
+- **Circuit breaker** — if 3+ repays execute within 60 minutes and HF remains unsafe (sharp price crash scenario), the agent pauses itself and notifies you to check manually.
 - **Rebalance alerts** — if one asset is earning significantly more APY than another you're supplying, the agent notifies you on Telegram.
 - **Telegram notifications** — every action is reported to your Telegram.
 
@@ -134,8 +136,11 @@ Personal Agent (every ~90s, ERC-8004 #67459)
   └─ emergencyProtect — atomic withdraw xUSDC supply + repay
   └─ deployToYield / deployTokenToYield — idle wallet tokens → pool
   └─ withdrawTokenFromYield — pulls supply back to wallet
-  └─ AgentExecutor v2.1 at 0x532aA90aB8B5Fbc795294D15A0557dD51a9a2A47
-  └─ Telegram notification after every action (rate-limited)
+  └─ HF warning alert — Telegram push when HF within 0.25 of target
+  └─ Circuit breaker — agent pauses if 3+ repays in 60 min with HF still unsafe
+  └─ getUserAccountDataAccrued — accurate HF with accrued interest (no state write)
+  └─ AgentExecutor v4 at 0x73802EfaB408Ca15208B59FC28aDB84007488606
+  └─ Telegram notification after every action (rate-limited, DB-persisted cooldown)
 
 Coordinator Agent (every 30s, ERC-8004 #34625)
   └─ scoring function ranks ALL liquidatable positions
@@ -249,6 +254,8 @@ Self-audited. Key fixes applied:
 - `.call()` instead of `.transfer()` for oracle fee withdrawal
 - Graceful fallback when neither Circle wallet nor private key is configured
 - x402 replay attack prevention via in-memory `usedTxHashes` set
+- `getUserAccountDataAccrued` — HF reads include accrued interest since last tx (no stale index)
+- Circuit breaker prevents cascade repay burn during sharp price drops
 
 **Known limitations:** Not professionally audited. Testnet only — no real funds.
 

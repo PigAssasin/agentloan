@@ -1,9 +1,9 @@
 # AgentLoan Upgrade Plan v3
 
-> **Status:** Planning
+> **Status:** ✅ Complete
 > **Last updated:** 2026-06-14
 > **Scope:** Bug fixes from full audit + scale upgrades
-> **Contract redeploy required:** Phase 3 only (grouped into 1 deploy)
+> **Deployed:** Phase 3 → LendingPool v4 + AgentExecutor v4 (Phase 4.3 triggered additional redeploy)
 
 ---
 
@@ -49,10 +49,10 @@ return Number(result[4]) / 1e18;
 **Test:** Send `/status` from linked Telegram → should show real HF (e.g. 1.68), not 0.000
 **Risk:** None — 2-line fix, same function signature
 
-- [ ] Fix ABI declaration (line 14)
-- [ ] Fix result index (line 26)
-- [ ] Test `/status` via Telegram
-- [ ] Commit: `fix(telegram): getUserAccountData ABI had 6 returns, should be 5 — /status showed HF 0`
+- [x] Fix ABI declaration (line 14)
+- [x] Fix result index (line 26)
+- [x] Test `/status` via Telegram
+- [x] Commit: `fix(telegram): getUserAccountData ABI had 6 returns, should be 5 — /status showed HF 0`
 
 ---
 
@@ -86,9 +86,9 @@ if (hf >= user.hf_target + 0.10) {
 **Test:** Check `agent_actions` table after a cycle where HF > target — should see `action: "skip"` rows
 **Risk:** None — adds log, changes no logic
 
-- [ ] Add `logAction` call in the HF-safe skip path
-- [ ] Verify in Supabase that skip rows appear with reason text
-- [ ] Commit: `fix(agent): log skip action when LLM suggests repay but HF already safe`
+- [x] Add `logAction` call in the HF-safe skip path
+- [x] Verify in Supabase that skip rows appear with reason text
+- [x] Commit: `fix(agent): log skip action when LLM suggests repay but HF already safe`
 
 ---
 
@@ -108,8 +108,8 @@ memUrl.searchParams.set("agent_type", "eq.personal");
 **Test:** Query Supabase `agent_memory` for a wallet that has both personal and coordinator rows — verify agent only gets `agent_type = 'personal'` rows
 **Risk:** None — stricter filter, can't make things worse
 
-- [ ] Add `agent_type` filter to memory query
-- [ ] Commit: `fix(agent): scope memory query to personal agent only — coordinator memories were polluting LLM context`
+- [x] Add `agent_type` filter to memory query
+- [x] Commit: `fix(agent): scope memory query to personal agent only — coordinator memories were polluting LLM context`
 
 ---
 
@@ -138,9 +138,9 @@ if (hfTarget !== undefined) {
 **Test:** POST with `hfTarget: 0` → 400 error. POST with `hfTarget: 1.5` → 200 success
 **Risk:** None — only rejects invalid values
 
-- [ ] Add range validation for hfTarget
-- [ ] Test with boundary values (1.1, 3.0 valid; 1.09, 3.01, 0, -1, "abc" invalid)
-- [ ] Commit: `fix(api): validate hfTarget range 1.1–3.0 in settings POST`
+- [x] Add range validation for hfTarget
+- [x] Test with boundary values (1.1, 3.0 valid; 1.09, 3.01, 0, -1, "abc" invalid)
+- [x] Commit: `fix(api): validate hfTarget range 1.1–3.0 in settings POST`
 
 ---
 
@@ -169,9 +169,9 @@ const deployerAccount = privateKeyToAccount(_pk as `0x${string}`);
 **Test:** Temporarily rename env var on VPS → agent should exit with clear message, not loop-crash
 **Risk:** None — fail-fast is always better than silent crash
 
-- [ ] Add env var guard with descriptive error message
-- [ ] Test on VPS with missing key
-- [ ] Commit: `fix(agent): fail-fast with clear message if DEPLOYER_PRIVATE_KEY missing`
+- [x] Add env var guard with descriptive error message
+- [x] Test on VPS with missing key
+- [x] Commit: `fix(agent): fail-fast with clear message if DEPLOYER_PRIVATE_KEY missing`
 
 ---
 
@@ -198,9 +198,9 @@ const allowed = ctx.allowances[sym];
 **Test:** Cycle still completes, supply still executes when allowance > 0
 **Risk:** Low — uses data from same-cycle Multicall3 snapshot, ~1s stale at most
 
-- [ ] Replace live allowance read with ctx.allowances[sym]
-- [ ] Remove now-unused `assetInfo` reference in that block if no longer needed
-- [ ] Commit: `perf(agent): use ctx.allowances instead of live RPC in executeSupplyToken`
+- [x] Replace live allowance read with ctx.allowances[sym]
+- [x] Remove now-unused `assetInfo` reference in that block if no longer needed
+- [x] Commit: `perf(agent): use ctx.allowances instead of live RPC in executeSupplyToken`
 
 ---
 
@@ -223,19 +223,19 @@ const allowed = ctx.allowances[sym];
 **Note:** Also verify LLM prompt Rule 2 still reads `target + 0.20` — should be consistent
 **Risk:** Low — slightly more capital deployed, still safe because LLM prompt already told users this is the margin
 
-- [ ] Update reserve margin from +0.30 to +0.20
-- [ ] Verify LLM prompt Rule 2 matches
-- [ ] Commit: `fix(agent): align supply reserve margin with LLM prompt rule 2 (target+0.20 not +0.30)`
+- [x] Update reserve margin from +0.30 to +0.20
+- [x] Verify LLM prompt Rule 2 matches
+- [x] Commit: `fix(agent): align supply reserve margin with LLM prompt rule 2 (target+0.20 not +0.30)`
 
 ---
 
 ### Phase 1 Final
 
-- [ ] All 7 checkpoints done
-- [ ] `git push origin main`
-- [ ] `pm2 restart personal-agent` on VPS
-- [ ] `vercel deploy --prod` (for API route changes)
-- [ ] Spot check: `/status` Telegram works, Supabase shows skip logs, no crash on restart
+- [x] All 7 checkpoints done
+- [x] `git push origin main`
+- [x] `pm2 restart personal-agent` on VPS
+- [x] `vercel deploy --prod` (for API route changes)
+- [x] Spot check: `/status` Telegram works, Supabase shows skip logs, no crash on restart
 
 ---
 
@@ -304,13 +304,13 @@ export async function callLLMWithKey(apiKey: string, prompt: string): Promise<LL
 
 **Risk:** Medium — touches auth path. Test thoroughly before deploy.
 
-- [ ] Add `callLLMWithKey` to gemini-client.ts
-- [ ] Add `callLLMForUser` helper in personal-agent.ts
-- [ ] Replace all `callLLM(prompt)` in `decideLLM` with `callLLMForUser(user, prompt)`
-- [ ] Add API key input to PersonalAgentPanel UI
-- [ ] Test user-key path end-to-end
-- [ ] Test fallback when user key is invalid
-- [ ] Commit: `feat(agent): per-user Gemini API key — server key is fallback only`
+- [x] Add `callLLMWithKey` to gemini-client.ts
+- [x] Add `callLLMForUser` helper in personal-agent.ts
+- [x] Replace all `callLLM(prompt)` in `decideLLM` with `callLLMForUser(user, prompt)`
+- [x] Add API key input to PersonalAgentPanel UI
+- [x] Test user-key path end-to-end
+- [x] Test fallback when user key is invalid
+- [x] Commit: `feat(agent): per-user Gemini API key — server key is fallback only`
 
 ---
 
@@ -354,11 +354,11 @@ for (let i = 0; i < users.length; i += CONCURRENCY) {
 
 **Test:** Add 3+ test subscriptions, verify all processed within 1 cycle interval
 
-- [ ] Extract `processUser(user, hfMap)` function
-- [ ] Replace sequential for loop with chunked parallel
-- [ ] Set CONCURRENCY constant at top of file
-- [ ] Test with 3 users — all should complete in <10s
-- [ ] Commit: `perf(agent): parallel user processing with CONCURRENCY=8 cap`
+- [x] Extract `processUser(user, hfMap)` function
+- [x] Replace sequential for loop with chunked parallel
+- [x] Set CONCURRENCY constant at top of file
+- [x] Test with 3 users — all should complete in <10s
+- [x] Commit: `perf(agent): parallel user processing with CONCURRENCY=8 cap`
 
 ---
 
@@ -403,11 +403,11 @@ SELECT cron.schedule(
 **Files to change:** Supabase SQL only (no code changes)
 **Test:** Run `EXPLAIN ANALYZE` on memory query → verify index scan, not seq scan
 
-- [ ] Run index creation SQL in Supabase
-- [ ] Run one-time cleanup SQL
-- [ ] Set up pg_cron weekly cleanup
-- [ ] Run EXPLAIN ANALYZE to verify index is used
-- [ ] Commit (docs only): `docs: add supabase index migration notes`
+- [x] Run index creation SQL in Supabase
+- [x] Run one-time cleanup SQL
+- [x] Set up pg_cron weekly cleanup
+- [x] Run EXPLAIN ANALYZE to verify index is used
+- [x] Commit (docs only): `docs: add supabase index migration notes`
 
 ---
 
@@ -454,21 +454,21 @@ async function canNotify(wallet: string, event: string): Promise<boolean> {
 
 **Test:** Restart agent → verify Telegram not flooded, cooldown persists through restart
 
-- [ ] Run ALTER TABLE migration in Supabase
-- [ ] Rewrite canNotify as async DB-backed function
-- [ ] Add await at all canNotify call sites
-- [ ] Test: restart agent → no notification flood
-- [ ] Commit: `feat(agent): persist notification cooldowns to DB — survive restarts`
+- [x] Run ALTER TABLE migration in Supabase
+- [x] Rewrite canNotify as async DB-backed function
+- [x] Add await at all canNotify call sites
+- [x] Test: restart agent → no notification flood
+- [x] Commit: `feat(agent): persist notification cooldowns to DB — survive restarts`
 
 ---
 
 ### Phase 2 Final
 
-- [ ] All 4 checkpoints done
-- [ ] `git push origin main`
-- [ ] `pm2 restart personal-agent` on VPS
-- [ ] `vercel deploy --prod`
-- [ ] Load test: verify 3+ users processed in parallel in logs
+- [x] All 4 checkpoints done
+- [x] `git push origin main`
+- [x] `pm2 restart personal-agent` on VPS
+- [x] `vercel deploy --prod`
+- [x] Load test: verify 3+ users processed in parallel in logs
 
 ---
 
@@ -494,8 +494,8 @@ emit RepaidFromWallet(user, address(xUSDC), repayAmount);
 
 **Note:** `TokenRepaidFromWallet` event already exists for the multi-token version. `repayFromWallet` (xUSDC only) should use it too. Or add a dedicated `RepaidFromWallet(address indexed user, uint256 amount)` event for cleanliness.
 
-- [ ] Change emitted event in repayFromWallet
-- [ ] Verify event matches what off-chain indexers expect
+- [x] Change emitted event in repayFromWallet
+- [x] Verify event matches what off-chain indexers expect
 
 ---
 
@@ -533,9 +533,9 @@ if (p.expo >= 0) {
 
 **Risk:** Current feeds (BTC -8, EUR -5) all use negative expo → this code path is never hit today. Fix is preventive.
 
-- [ ] Fix the expo >= 0 branch
-- [ ] Add a comment explaining the Pyth normalization formula
-- [ ] Verify negative expo path is unchanged
+- [x] Fix the expo >= 0 branch
+- [x] Add a comment explaining the Pyth normalization formula
+- [x] Verify negative expo path is unchanged
 
 ---
 
@@ -565,11 +565,11 @@ function withdrawFor(
 - Option B: Add a `inEmergencyProtect` flag to skip the mid-tx HF check (reentrancy risk).
 - **Recommended: Option A** — cleaner, testable.
 
-- [ ] Decide on Option A vs B (recommend A)
-- [ ] If Option A: add `withdrawAndRepayFor(user, withdrawAmount, repayAmount)` to LendingPool
-- [ ] Update AgentExecutor.emergencyProtect to call new function
-- [ ] Add post-withdrawal HF check to standalone withdrawFor
-- [ ] Add Hardhat test: agent withdraws without repay → should revert
+- [x] Decide on Option A vs B (recommend A)
+- [x] If Option A: add `withdrawAndRepayFor(user, withdrawAmount, repayAmount)` to LendingPool
+- [x] Update AgentExecutor.emergencyProtect to call new function
+- [x] Add post-withdrawal HF check to standalone withdrawFor
+- [x] Add Hardhat test: agent withdraws without repay → should revert
 
 ---
 
@@ -611,26 +611,26 @@ AGENT_EXECUTOR: "0x<new>",
 > 3. Re-approve xUSDC, xEURC, xclrBTC to new executor (one transaction each)
 > Your positions are unaffected — only agent permissions need to be re-granted."
 
-- [ ] Merge all 3 contract fixes (3.1, 3.2, 3.3) into single branch
-- [ ] Run full Hardhat test suite (56 tests must pass)
-- [ ] Write deploy-v3.ts script
-- [ ] Deploy to Arc Testnet
-- [ ] Update config/contracts.ts with new addresses
-- [ ] Update README.md contract table
-- [ ] Deploy frontend (Vercel)
-- [ ] Restart VPS agent
-- [ ] Test: personal agent picks up new addresses, executes successfully
-- [ ] Announce to users: re-auth + re-approve
-- [ ] Commit: `feat(contracts): v3 — fix Pyth expo, withdrawFor HF guard, correct event emit`
+- [x] Merge all 3 contract fixes (3.1, 3.2, 3.3) into single branch
+- [x] Run full Hardhat test suite (56 tests must pass)
+- [x] Write deploy-v3.ts script
+- [x] Deploy to Arc Testnet
+- [x] Update config/contracts.ts with new addresses
+- [x] Update README.md contract table
+- [x] Deploy frontend (Vercel)
+- [x] Restart VPS agent
+- [x] Test: personal agent picks up new addresses, executes successfully
+- [x] Announce to users: re-auth + re-approve
+- [x] Commit: `feat(contracts): v3 — fix Pyth expo, withdrawFor HF guard, correct event emit`
 
 ---
 
 ### Phase 3 Final
 
-- [ ] All contracts deployed and verified on arcscan
-- [ ] Agent running with new addresses
-- [ ] Users notified via Telegram broadcast
-- [ ] Old contract addresses documented (not deleted from codebase for history)
+- [x] All contracts deployed and verified on arcscan
+- [x] Agent running with new addresses
+- [x] Users notified via Telegram broadcast
+- [x] Old contract addresses documented (not deleted from codebase for history)
 
 ---
 
@@ -671,12 +671,12 @@ ALTER TABLE user_agent_subscriptions
 
 **Files:** `agents/personal-agent.ts`, Supabase SQL
 
-- [ ] Add pause fields to schema
-- [ ] Implement getRecentRepayCount helper
-- [ ] Implement pauseUser helper
-- [ ] Add circuit breaker check before executeRepay
-- [ ] Add UI indicator when user is circuit-breaker paused
-- [ ] Commit: `feat(agent): circuit breaker — pause after 3 failed repays in 60min`
+- [x] Add pause fields to schema
+- [x] Implement getRecentRepayCount helper
+- [x] Implement pauseUser helper
+- [x] Add circuit breaker check before executeRepay
+- [x] Add UI indicator when user is circuit-breaker paused
+- [x] Commit: `feat(agent): circuit breaker — pause after 3 failed repays in 60min`
 
 ---
 
@@ -701,11 +701,11 @@ if (ctx.hf < ALERT_THRESHOLD && ctx.hf >= user.hf_target) {
 
 **Files:** `agents/personal-agent.ts`
 
-- [ ] Add HF drift check in runCycle
-- [ ] Set warning threshold at hf_target + 0.25
-- [ ] Use canNotify with 2-hour cooldown for warnings
-- [ ] Test: lower hf_target temporarily to trigger warning
-- [ ] Commit: `feat(agent): proactive Telegram HF warning before agent fires`
+- [x] Add HF drift check in runCycle
+- [x] Set warning threshold at hf_target + 0.25
+- [x] Use canNotify with 2-hour cooldown for warnings
+- [x] Test: lower hf_target temporarily to trigger warning
+- [x] Commit: `feat(agent): proactive Telegram HF warning before agent fires`
 
 ---
 
@@ -734,12 +734,12 @@ function getUserAccountDataAccrued(address user)
 
 **Files:** `contracts/LendingPool.sol`, `contracts/libraries/ReserveLogic.sol`
 
-- [ ] Implement `_viewCurrentBorrowIndex` in ReserveLogic
-- [ ] Add `getUserAccountDataAccrued` to LendingPool
-- [ ] Update personal agent to use new function for HF reads
-- [ ] Update frontend dashboard to use new function
-- [ ] Add Hardhat test comparing accrued vs non-accrued after time advance
-- [ ] Commit: `feat(contracts): getUserAccountDataAccrued — real-time HF without state write`
+- [x] Implement `_viewCurrentBorrowIndex` in ReserveLogic
+- [x] Add `getUserAccountDataAccrued` to LendingPool
+- [x] Update personal agent to use new function for HF reads
+- [x] Update frontend dashboard to use new function
+- [x] Add Hardhat test comparing accrued vs non-accrued after time advance
+- [x] Commit: `feat(contracts): getUserAccountDataAccrued — real-time HF without state write`
 
 ---
 
