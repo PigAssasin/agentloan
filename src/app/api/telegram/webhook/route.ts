@@ -11,7 +11,7 @@ const arcChain = {
 } as const;
 
 const client = createPublicClient({ chain: arcChain, transport: http() });
-const POOL_ABI = parseAbi(["function getUserAccountData(address) external view returns (uint256,uint256,uint256,uint256,uint256,uint256)"]);
+const POOL_ABI = parseAbi(["function getUserAccountData(address) external view returns (uint256,uint256,uint256,uint256,uint256)"]);
 
 async function getHFSafe(address: string): Promise<number | null> {
   try {
@@ -23,7 +23,7 @@ async function getHFSafe(address: string): Promise<number | null> {
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
     ]) as bigint[];
-    return Number(result[5]) / 1e18;
+    return Number(result[4]) / 1e18;
   } catch { return null; }
 }
 

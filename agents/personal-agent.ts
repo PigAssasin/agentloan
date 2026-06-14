@@ -52,7 +52,14 @@ const arcChain = {
 } as const;
 
 const publicClient   = createPublicClient({ chain: arcChain, transport: http() });
-const deployerAccount = privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`);
+
+const _pk = process.env.DEPLOYER_PRIVATE_KEY;
+if (!_pk || !/^0x[0-9a-fA-F]{64}$/.test(_pk)) {
+  console.error("[FATAL] DEPLOYER_PRIVATE_KEY missing or invalid. Expected 0x + 64 hex chars.");
+  console.error("        Check /root/arcbank/.env.local on VPS and restart with: pm2 restart personal-agent");
+  process.exit(1);
+}
+const deployerAccount = privateKeyToAccount(_pk as `0x${string}`);
 const deployerWallet  = createWalletClient({ account: deployerAccount, chain: arcChain, transport: http() });
 
 const SB_URL     = process.env.SUPABASE_URL!;
@@ -316,6 +323,7 @@ async function decideLLM(user: UserSub, ctx: PortfolioContext): Promise<Decision
   const memUrl = new URL(`${SB_URL}/rest/v1/agent_memory`);
   memUrl.searchParams.set("select", "content");
   memUrl.searchParams.set("wallet_address", `eq.${user.wallet_address}`);
+  memUrl.searchParams.set("agent_type", "eq.personal");
   memUrl.searchParams.set("order", "created_at.desc");
   memUrl.searchParams.set("limit", "10");
   const memories: { content: string }[] = await fetch(memUrl.toString(), { headers: SB_HEADERS })
@@ -530,6 +538,11 @@ async function executeRepay(user: UserSub, ctx: PortfolioContext, decision: Deci
 
   if (hf >= user.hf_target + 0.10) {
     console.log(`  [skip] ${user.wallet_address.slice(0,10)}... HF ${hf.toFixed(3)} safe`);
+    await logAction(user.wallet_address, "skip", {
+      reason: `LLM suggested repay but HF ${hf.toFixed(2)} is already safe (>= target + 0.10)`,
+      hfBefore: hf,
+      success: true,
+    });
     return;
   }
 
@@ -629,7 +642,7 @@ async function executeSupplyUSDC(user: UserSub, ctx: PortfolioContext, decision:
 
   // Reserve: keep enough in wallet to repay debt back to target+0.30 without touching pool
   const reserveUSD = ctx.debtUSD > 0
-    ? Math.max(0, ctx.debtUSD - ctx.weightedCollUSD / (user.hf_target + 0.30)) * 1.2
+    ? Math.max(0, ctx.debtUSD - ctx.weightedCollUSD / (user.hf_target + 0.20)) * 1.2
     : 0;
   const reserveAmount  = parseUnits(Math.ceil(reserveUSD).toFixed(6), 6);
   const deployable     = ctx.walletRaw.xUSDC > reserveAmount ? ctx.walletRaw.xUSDC - reserveAmount : 0n;
@@ -677,12 +690,8 @@ async function executeSupplyToken(user: UserSub, ctx: PortfolioContext, decision
 
   if (walletUSD < 10) return;
 
-  // Check if user has approved this token to executor
-  const allowed = await publicClient.readContract({
-    address: assetInfo.addr, abi: ERC20_ABI,
-    functionName: "allowance",
-    args: [user.wallet_address as `0x${string}`, ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR],
-  }) as bigint;
+  // Use allowance already fetched in Multicall3 batch — avoids extra RPC call
+  const allowed = ctx.allowances[sym];
 
   const minAllowance = sym === "xclrBTC"
     ? parseUnits("0.001", 8)

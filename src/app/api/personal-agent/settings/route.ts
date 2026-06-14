@@ -46,7 +46,13 @@ export async function POST(req: NextRequest) {
     wallet_address: address.toLowerCase(),
     agent_type:     "personal",
   };
-  if (hfTarget !== undefined) update.hf_target    = hfTarget;
+  if (hfTarget !== undefined) {
+    const t = Number(hfTarget);
+    if (!isFinite(t) || t < 1.1 || t > 3.0) {
+      return Response.json({ error: "hfTarget must be between 1.1 and 3.0" }, { status: 400 });
+    }
+    update.hf_target = t;
+  }
   if (enabled  !== undefined) update.enabled       = enabled;
   if (llmProvider !== undefined) update.llm_provider = llmProvider;
   if (llmBaseUrl  !== undefined) update.llm_base_url = llmBaseUrl;
