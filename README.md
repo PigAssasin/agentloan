@@ -157,9 +157,9 @@ Liquidation Bot (every block, ~0.48s, ERC-8004 #30907)
 
 | Contract | Address |
 |---|---|
-| LendingPool v3 | [`0x75A8d2c7ad4dC11d566091d19354cB3bD3720fbA`](https://testnet.arcscan.app/address/0x75A8d2c7ad4dC11d566091d19354cB3bD3720fbA) |
+| LendingPool v4 | [`0xd260CE0395429c71E589FD694C022cC04c923De7`](https://testnet.arcscan.app/address/0xd260CE0395429c71E589FD694C022cC04c923De7) |
 | PriceOraclePyth v3 | [`0xBA2ab92aBbbeD432cd5e57DE8fE9ED1dFed16CdF`](https://testnet.arcscan.app/address/0xBA2ab92aBbbeD432cd5e57DE8fE9ED1dFed16CdF) |
-| AgentExecutor v3 | [`0x2335Ce2aBd5aB6cbB4EE69662fe1d1830D5D65Be`](https://testnet.arcscan.app/address/0x2335Ce2aBd5aB6cbB4EE69662fe1d1830D5D65Be) |
+| AgentExecutor v4 | [`0x73802EfaB408Ca15208B59FC28aDB84007488606`](https://testnet.arcscan.app/address/0x73802EfaB408Ca15208B59FC28aDB84007488606) |
 | InterestRateStrategy | [`0x22B2A153F7694e49096ef91D627a80c5b6602Ffd`](https://testnet.arcscan.app/address/0x22B2A153F7694e49096ef91D627a80c5b6602Ffd) |
 | xUSDC (mock) | [`0xFa090bd1A524D861542888B6c5e7965dde1F4f35`](https://testnet.arcscan.app/address/0xFa090bd1A524D861542888B6c5e7965dde1F4f35) |
 | xEURC (mock) | [`0x11aC6A7f4c3235e4edda971838640bE9e55aC222`](https://testnet.arcscan.app/address/0x11aC6A7f4c3235e4edda971838640bE9e55aC222) |

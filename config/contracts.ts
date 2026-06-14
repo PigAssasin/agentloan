@@ -26,12 +26,12 @@ export const ARC_TESTNET_CONTRACTS = {
   // ── Pyth Network on Arc Testnet ────────────────────────────────────────────
   PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43" as `0x${string}`,
 
-  // ── AgentLoan Protocol — Arc Testnet (Phase 3 deploy) ────────────────────────
-  LENDING_POOL:          "0x75A8d2c7ad4dC11d566091d19354cB3bD3720fbA" as `0x${string}`, // v3: withdrawAndRepayFor, HF guard
-  PRICE_ORACLE:          "0xBA2ab92aBbbeD432cd5e57DE8fE9ED1dFed16CdF" as `0x${string}`, // PriceOraclePyth v3 — expo fix, EUR 30d staleness
+  // ── AgentLoan Protocol — Arc Testnet (Phase 4 deploy) ────────────────────────
+  LENDING_POOL:          "0xd260CE0395429c71E589FD694C022cC04c923De7" as `0x${string}`, // v4: getUserAccountDataAccrued
+  PRICE_ORACLE:          "0xBA2ab92aBbbeD432cd5e57DE8fE9ED1dFed16CdF" as `0x${string}`, // PriceOraclePyth v3 (reused)
   INTEREST_RATE_STRATEGY:"0x22B2A153F7694e49096ef91D627a80c5b6602Ffd" as `0x${string}`,
 
-  AGENT_EXECUTOR:        "0x2335Ce2aBd5aB6cbB4EE69662fe1d1830D5D65Be" as `0x${string}`, // v3: correct events, atomic emergencyProtect
+  AGENT_EXECUTOR:        "0x73802EfaB408Ca15208B59FC28aDB84007488606" as `0x${string}`, // v4: points to LendingPool v4
 
   // Mock testnet tokens — 24h on-chain cooldown per wallet
   X_USDC:   "0xFa090bd1A524D861542888B6c5e7965dde1F4f35" as `0x${string}`,
