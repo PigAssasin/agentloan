@@ -404,7 +404,70 @@ contract LendingPool is Ownable, ReentrancyGuard, Pausable {
         r.totalScaledSupply -= scaledToRemove;
         _updateRates(token, r);
         IERC20(token).safeTransfer(recipient, amount);
+
+        // Safety guard: a standalone withdraw must not push an indebted user below HF 1.0
+        _updateAllIndexes();
+        (uint256 collUSD, uint256 debtUSD) = _getAccountCollateralAndDebt(onBehalfOf);
+        if (debtUSD > 0) {
+            uint256 hfAfter = ValidationLogic.calculateHealthFactor(collUSD, debtUSD);
+            if (hfAfter < 1e18) revert HealthFactorTooLow(hfAfter);
+        }
+
         emit Withdraw(token, onBehalfOf, amount);
+    }
+
+    // Atomic: withdraw collateral + repay debt in a single call.
+    // Tokens stay inside the pool — no ERC20 movement unless withdrawAmount > repayAmount.
+    // Use for emergencyProtect to avoid intermediate HF < 1.0 reverts.
+    function withdrawAndRepayFor(
+        address onBehalfOf,
+        address token,
+        uint256 withdrawAmount,
+        uint256 repayAmount
+    ) external nonReentrant whenNotPaused {
+        require(agentAuthorized[onBehalfOf][msg.sender], "agent not authorized");
+        if (withdrawAmount == 0 || repayAmount == 0) revert AmountZero();
+
+        DataTypes.ReserveData storage r = _getReserve(token);
+        r.updateIndexes();
+
+        // ── Withdraw phase ────────────────────────────────────────────────
+        uint256 realBalance = _realUserSupply(token, onBehalfOf, r);
+        if (withdrawAmount > realBalance) revert InsufficientBalance(realBalance, withdrawAmount);
+
+        uint256 scaledToRemove = (withdrawAmount * RAY + r.liquidityIndex - 1) / r.liquidityIndex;
+        uint256 userScaledSup  = userScaledSupply[token][onBehalfOf];
+        if (scaledToRemove > userScaledSup) scaledToRemove = userScaledSup;
+        userScaledSupply[token][onBehalfOf] -= scaledToRemove;
+        r.totalScaledSupply -= scaledToRemove;
+        emit Withdraw(token, onBehalfOf, withdrawAmount);
+
+        // ── Repay phase (tokens already in pool — no ERC20 transfer in) ──
+        uint256 realDebt    = _realUserBorrow(token, onBehalfOf, r);
+        uint256 actualRepay = repayAmount > realDebt ? realDebt : repayAmount;
+
+        uint256 currentScaledBorrow = userScaledBorrow[token][onBehalfOf];
+        uint256 scaledRepayRemove;
+        if (actualRepay >= realDebt) {
+            scaledRepayRemove = currentScaledBorrow;
+        } else {
+            scaledRepayRemove = (actualRepay * RAY) / r.borrowIndex;
+            if (scaledRepayRemove > currentScaledBorrow) scaledRepayRemove = currentScaledBorrow;
+        }
+        userScaledBorrow[token][onBehalfOf] -= scaledRepayRemove;
+        r.totalScaledBorrow -= scaledRepayRemove;
+        _updateRates(token, r);
+
+        // Transfer any excess (withdraw > repay) to user
+        if (withdrawAmount > actualRepay) {
+            uint256 excess     = withdrawAmount - actualRepay;
+            uint256 realBorrowAfter = _realTotal(r.totalScaledBorrow, r.borrowIndex);
+            uint256 realSupplyAfter = _realTotal(r.totalScaledSupply, r.liquidityIndex);
+            uint256 liquidityAfter  = realSupplyAfter > realBorrowAfter ? realSupplyAfter - realBorrowAfter : 0;
+            if (excess > liquidityAfter) revert InsufficientLiquidity(liquidityAfter, excess);
+            IERC20(token).safeTransfer(onBehalfOf, excess);
+        }
+        emit Repay(token, onBehalfOf, actualRepay);
     }
 
     // Anyone can repay debt on behalf of a borrower — tokens pulled from msg.sender

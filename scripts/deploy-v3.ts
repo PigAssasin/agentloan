@@ -70,6 +70,11 @@ async function main() {
     console.log("    ⚠ BOT_WALLET not set — run setAgent() manually");
   }
 
+  // Whitelist all 3 tokens (xUSDC is set in constructor; xEURC + xclrBTC need explicit call)
+  await (await executor.setSupportedToken(ARC_TESTNET_CONTRACTS.X_EURC,    true)).wait();
+  await (await executor.setSupportedToken(ARC_TESTNET_CONTRACTS.X_CLR_BTC, true)).wait();
+  console.log("    Tokens whitelisted: xUSDC (default) | xEURC | xclrBTC");
+
   // ── 5. Seed liquidity ─────────────────────────────────────────────────────
   console.log("5/6 Seeding liquidity...");
   const xUSDC   = await ethers.getContractAt("MockERC20", ARC_TESTNET_CONTRACTS.X_USDC,    deployer);

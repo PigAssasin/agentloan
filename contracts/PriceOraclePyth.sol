@@ -70,14 +70,16 @@ contract PriceOraclePyth is Ownable {
 
         if (p.price <= 0) revert NegativePrice(token);
 
-        // Pyth price: price × 10^expo
-        // Normalize to WAD (1e18)
+        // Pyth price: actual_price = rawPrice × 10^expo
+        // Normalize to WAD (1e18): priceWAD = rawPrice × 10^(18 + expo)  [expo >= 0]
+        //                          priceWAD = rawPrice × 1e18 / 10^(-expo) [expo < 0]
         uint256 rawPrice = uint256(uint64(p.price));
         uint256 priceWAD;
         if (p.expo >= 0) {
-            priceWAD = rawPrice * (10 ** uint32(p.expo)) * 1e10; // scale to 1e18
+            uint256 scale = 18 + uint256(uint32(p.expo));
+            priceWAD = rawPrice * (10 ** scale);
         } else {
-            uint256 divisor = 10 ** uint32(-p.expo);
+            uint256 divisor = 10 ** uint256(uint32(-p.expo));
             priceWAD = (rawPrice * 1e18) / divisor;
         }
         return priceWAD;

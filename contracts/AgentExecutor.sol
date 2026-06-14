@@ -9,6 +9,7 @@ interface ILendingPoolAgent {
     function depositFor(address onBehalfOf, address token, uint256 amount) external;
     function withdrawFor(address onBehalfOf, address token, uint256 amount, address recipient) external;
     function repayFor(address borrower, address token, uint256 amount) external;
+    function withdrawAndRepayFor(address onBehalfOf, address token, uint256 withdrawAmount, uint256 repayAmount) external;
     function authorizeAgent(address agent, bool allowed) external;
     function getUserSupplyBalance(address token, address user) external view returns (uint256);
     function getUserBorrowBalance(address token, address user) external view returns (uint256);
@@ -96,9 +97,9 @@ contract AgentExecutor is Ownable {
         uint256 supplyBal = pool.getUserSupplyBalance(address(xUSDC), user);
         if (repayAmount > supplyBal) revert InsufficientSupply(supplyBal, repayAmount);
 
-        pool.withdrawFor(user, address(xUSDC), repayAmount, address(this));
-        xUSDC.forceApprove(address(pool), repayAmount);
-        pool.repayFor(user, address(xUSDC), repayAmount);
+        // Atomic: withdraw collateral + repay debt in one pool call.
+        // Tokens never leave the pool — no intermediate approval needed.
+        pool.withdrawAndRepayFor(user, address(xUSDC), repayAmount, repayAmount);
         emit EmergencyProtected(user, repayAmount);
     }
 
@@ -110,7 +111,7 @@ contract AgentExecutor is Ownable {
         xUSDC.safeTransferFrom(user, address(this), repayAmount);
         xUSDC.forceApprove(address(pool), repayAmount);
         pool.repayFor(user, address(xUSDC), repayAmount);
-        emit EmergencyProtected(user, repayAmount);
+        emit TokenRepaidFromWallet(user, address(xUSDC), repayAmount);
     }
 
     // ── v2 functions (multi-asset) ─────────────────────────────────────────
