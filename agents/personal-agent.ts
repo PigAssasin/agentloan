@@ -33,7 +33,8 @@ import {
   encodeFunctionData, decodeFunctionResult,
 } from "viem";
 import { privateKeyToAccount }             from "viem/accounts";
-import { callLLM }                         from "./lib/gemini-client";
+import { callLLM, callLLMWithKey, LLMResponse } from "./lib/gemini-client";
+import { decryptKey }                       from "../src/lib/agent-helpers";
 import { getPositionsBatch, UserPosition } from "./lib/pool-reader";
 import { ARC_TESTNET_CONTRACTS, ARC_AGENT_REGISTRY, AGENT_IDS } from "../config/contracts";
 
@@ -393,7 +394,7 @@ skip                        — no action
 Respond JSON only: {"action":"...","amount_usd":0,"reason":"..."}`;
 
   try {
-    const resp  = await callLLM(prompt);
+    const resp  = await callLLMForUser(user, prompt);
     const start = resp.text.indexOf("{");
     const end   = resp.text.lastIndexOf("}");
     if (start < 0 || end < 0) throw new Error("no JSON");
@@ -447,6 +448,17 @@ function shouldCallLLM(user: UserSub): boolean {
   return Date.now() - new Date(user.last_llm_call_at).getTime() > MIN_LLM_MS;
 }
 
+async function callLLMForUser(user: UserSub, prompt: string): Promise<LLMResponse> {
+  if (user.llm_api_key_enc) {
+    try {
+      return await callLLMWithKey(decryptKey(user.llm_api_key_enc), prompt);
+    } catch (e: any) {
+      console.warn(`  [personal] Decrypt user key failed: ${e.message} — using server key`);
+    }
+  }
+  return callLLM(prompt);
+}
+
 async function updateLastLLMCall(wallet: string) {
   const url = new URL(`${SB_URL}/rest/v1/user_agent_subscriptions`);
   url.searchParams.set("wallet_address", `eq.${wallet}`);
@@ -474,6 +486,7 @@ async function notifyUser(wallet: string, text: string) {
 
 // Rate limiter for non-critical Telegram notifications (pending approvals, rebalance, etc.)
 // Prevents spamming the same event type every 20 blocks.
+// Cooldowns are persisted to agent_memory (type='cooldown') so they survive PM2 restarts.
 const notifCooldown = new Map<string, number>(); // key: `${wallet}_${event}` → last sent ms
 const NOTIF_COOLDOWN_MS = 30 * 60 * 1000; // 30 min
 
@@ -482,7 +495,50 @@ function canNotify(wallet: string, event: string): boolean {
   const last = notifCooldown.get(key) ?? 0;
   if (Date.now() - last < NOTIF_COOLDOWN_MS) return false;
   notifCooldown.set(key, Date.now());
+  persistCooldowns(wallet).catch(() => {});
   return true;
+}
+
+// Collect all cooldown entries for a wallet and persist as a single row in agent_memory.
+async function persistCooldowns(wallet: string) {
+  const prefix = `${wallet}_`;
+  const snapshot: Record<string, number> = {};
+  for (const [k, v] of notifCooldown.entries()) {
+    if (k.startsWith(prefix)) snapshot[k.slice(prefix.length)] = v;
+  }
+  const delUrl = new URL(`${SB_URL}/rest/v1/agent_memory`);
+  delUrl.searchParams.set("wallet_address", `eq.${wallet}`);
+  delUrl.searchParams.set("agent_type", "eq.personal");
+  delUrl.searchParams.set("type", "eq.cooldown");
+  await fetch(delUrl.toString(), { method: "DELETE", headers: SB_HEADERS }).catch(() => {});
+  await fetch(`${SB_URL}/rest/v1/agent_memory`, {
+    method: "POST", headers: SB_HEADERS,
+    body: JSON.stringify({ wallet_address: wallet, agent_type: "personal", type: "cooldown", content: JSON.stringify(snapshot) }),
+  }).catch(() => {});
+}
+
+// Load persisted cooldowns from DB into memory on startup.
+async function loadCooldowns() {
+  const url = new URL(`${SB_URL}/rest/v1/agent_memory`);
+  url.searchParams.set("select", "wallet_address,content");
+  url.searchParams.set("agent_type", "eq.personal");
+  url.searchParams.set("type", "eq.cooldown");
+  try {
+    const res = await fetch(url.toString(), { headers: SB_HEADERS });
+    if (!res.ok) return;
+    const rows: { wallet_address: string; content: string }[] = await res.json();
+    let loaded = 0;
+    for (const row of rows) {
+      try {
+        const snap: Record<string, number> = JSON.parse(row.content);
+        for (const [event, ts] of Object.entries(snap)) {
+          notifCooldown.set(`${row.wallet_address}_${event}`, ts);
+          loaded++;
+        }
+      } catch {}
+    }
+    if (loaded > 0) console.log(`[cooldown] Loaded ${loaded} entries from DB`);
+  } catch {}
 }
 
 async function logAction(wallet: string, action: string, data: {
@@ -982,7 +1038,107 @@ function runBacktest() {
 
 // ── Main execution loop ──────────────────────────────────────────────────────
 
+const CONCURRENCY = 8;
+
 let isRunning = false;
+
+async function processUser(
+  user: UserSub,
+  hfMap: Map<string, { hf: number; debtUSD: number; weightedColl: number }>
+): Promise<void> {
+  const quick = hfMap.get(user.wallet_address.toLowerCase());
+  if (!quick) return;
+
+  const urgency = quick.debtUSD === 0 ? 0 : (
+    quick.hf < 1.05 ? 3 :
+    quick.hf < user.hf_target ? 2 :
+    quick.hf < user.hf_target + 0.13 ? 1 : 0
+  );
+
+  // Check on-chain authorization
+  const authorized = await publicClient.readContract({
+    address: ARC_TESTNET_CONTRACTS.LENDING_POOL, abi: POOL_ABI,
+    functionName: "agentAuthorized",
+    args: [user.wallet_address as `0x${string}`, ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR],
+  }).catch(() => false);
+  if (!authorized) return;
+
+  // Fetch full portfolio context (all 13 reads in 1 RPC)
+  let ctx: PortfolioContext;
+  try {
+    ctx = await fetchPortfolioContext(user.wallet_address);
+  } catch (e: any) {
+    console.warn(`  [ctx] failed for ${user.wallet_address.slice(0,10)}...: ${e.message?.slice(0,60)}`);
+    return;
+  }
+
+  // Re-check with fresh ctx data
+  const hasIdleAssets = ctx.wallet.xUSDC >= 10 || ctx.wallet.xEURC >= 10 || ctx.wallet.xclrBTC >= 10;
+  if (urgency === 0 && !hasIdleAssets) return;
+
+  let decision: Decision;
+
+  if (urgency >= 3) {
+    const repayUSD = Math.max(0, ctx.debtUSD - ctx.weightedCollUSD / (user.hf_target + 0.2));
+    decision = { action: "emergency_protect", amountUsd: repayUSD, reason: `HF ${ctx.hf.toFixed(2)} < 1.05 — emergency` };
+  } else {
+    // Rule-based always runs first — handles repay/supply/rebalance instantly without LLM.
+    // LLM only fires when rule-based has nothing to do (skip) and cooldown has passed.
+    decision = decideRuleBased(user, ctx);
+
+    if (decision.action === "skip") {
+      if (shouldCallLLM(user)) {
+        decision = await decideLLM(user, ctx);
+        await updateLastLLMCall(user.wallet_address);
+      }
+      // Rule-based doesn't know about borrow opportunities — check manually
+      if (decision.action === "skip") {
+        const bestNet = Math.max(...(["xUSDC","xEURC","xclrBTC"] as AssetSym[]).map(sym =>
+          ctx.markets[sym].supplyAPY - ctx.markets[sym].borrowAPY
+        ));
+        if (bestNet > 0.3 && ctx.hf > user.hf_target + 0.5 && ctx.availableBorrowsUSD > 1000) {
+          decision = { action: "notify_borrow", amountUsd: ctx.availableBorrowsUSD, reason: `Net loop +${bestNet.toFixed(2)}%` };
+        }
+      }
+    }
+  }
+
+  if (decision.action === "skip") return;
+
+  console.log(`  → ${user.wallet_address.slice(0,10)}... ${decision.action} $${decision.amountUsd.toFixed(0)} | ${decision.reason}`);
+
+  try {
+    switch (decision.action) {
+      case "emergency_protect":
+      case "repay":
+        await executeRepay(user, ctx, decision);
+        break;
+      case "supply_usdc":
+        await executeSupplyUSDC(user, ctx, decision);
+        break;
+      case "supply_eurc":
+        await executeSupplyToken(user, ctx, decision, "xEURC");
+        break;
+      case "supply_btc":
+        await executeSupplyToken(user, ctx, decision, "xclrBTC");
+        break;
+      case "notify_borrow":
+        await executeNotifyBorrow(user, ctx, decision);
+        break;
+      case "withdraw_usdc":
+        await executeWithdrawUSDC(user, ctx, decision);
+        break;
+      case "rebalance":
+        await executeRebalance(user, ctx);
+        break;
+    }
+  } catch (e: any) {
+    await logAction(user.wallet_address, decision.action, {
+      reason: decision.reason, success: false, error: e.message?.slice(0, 200),
+    });
+    console.error(`  ✗ ${user.wallet_address.slice(0,10)}... ${decision.action}:`, e.message?.slice(0, 80));
+  }
+}
 
 async function runCycle() {
   const users = await getEnabledUsers();
@@ -992,99 +1148,12 @@ async function runCycle() {
   // Quick HF scan via Multicall3 (cheap, no LLM)
   const hfMap = await getHFBatch(users.map(u => u.wallet_address));
 
-  for (const user of users) {
-    const quick = hfMap.get(user.wallet_address.toLowerCase());
-    if (!quick) continue;
-
-    const urgency = quick.debtUSD === 0 ? 0 : (
-      quick.hf < 1.05 ? 3 :
-      quick.hf < user.hf_target ? 2 :
-      quick.hf < user.hf_target + 0.13 ? 1 : 0
-    );
-
-    // Check on-chain authorization
-    const authorized = await publicClient.readContract({
-      address: ARC_TESTNET_CONTRACTS.LENDING_POOL, abi: POOL_ABI,
-      functionName: "agentAuthorized",
-      args: [user.wallet_address as `0x${string}`, ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR],
-    }).catch(() => false);
-    if (!authorized) continue;
-
-    // Fetch full portfolio context (all 13 reads in 1 RPC)
-    let ctx: PortfolioContext;
-    try {
-      ctx = await fetchPortfolioContext(user.wallet_address);
-    } catch (e: any) {
-      console.warn(`  [ctx] failed for ${user.wallet_address.slice(0,10)}...: ${e.message?.slice(0,60)}`);
-      continue;
-    }
-
-    // Re-check with fresh ctx data
-    const hasIdleAssets = ctx.wallet.xUSDC >= 10 || ctx.wallet.xEURC >= 10 || ctx.wallet.xclrBTC >= 10;
-    if (urgency === 0 && !hasIdleAssets) continue;
-
-    let decision: Decision;
-
-    if (urgency >= 3) {
-      const repayUSD = Math.max(0, ctx.debtUSD - ctx.weightedCollUSD / (user.hf_target + 0.2));
-      decision = { action: "emergency_protect", amountUsd: repayUSD, reason: `HF ${ctx.hf.toFixed(2)} < 1.05 — emergency` };
-    } else {
-      // Rule-based always runs first — handles repay/supply/rebalance instantly without LLM.
-      // LLM only fires when rule-based has nothing to do (skip) and cooldown has passed.
-      decision = decideRuleBased(user, ctx);
-
-      if (decision.action === "skip") {
-        if (shouldCallLLM(user)) {
-          decision = await decideLLM(user, ctx);
-          await updateLastLLMCall(user.wallet_address);
-        }
-        // Rule-based doesn't know about borrow opportunities — check manually
-        if (decision.action === "skip") {
-          const bestNet = Math.max(...(["xUSDC","xEURC","xclrBTC"] as AssetSym[]).map(sym =>
-            ctx.markets[sym].supplyAPY - ctx.markets[sym].borrowAPY
-          ));
-          if (bestNet > 0.3 && ctx.hf > user.hf_target + 0.5 && ctx.availableBorrowsUSD > 1000) {
-            decision = { action: "notify_borrow", amountUsd: ctx.availableBorrowsUSD, reason: `Net loop +${bestNet.toFixed(2)}%` };
-          }
-        }
-      }
-    }
-
-    if (decision.action === "skip") continue;
-
-    console.log(`  → ${user.wallet_address.slice(0,10)}... ${decision.action} $${decision.amountUsd.toFixed(0)} | ${decision.reason}`);
-
-    try {
-      switch (decision.action) {
-        case "emergency_protect":
-        case "repay":
-          await executeRepay(user, ctx, decision);
-          break;
-        case "supply_usdc":
-          await executeSupplyUSDC(user, ctx, decision);
-          break;
-        case "supply_eurc":
-          await executeSupplyToken(user, ctx, decision, "xEURC");
-          break;
-        case "supply_btc":
-          await executeSupplyToken(user, ctx, decision, "xclrBTC");
-          break;
-        case "notify_borrow":
-          await executeNotifyBorrow(user, ctx, decision);
-          break;
-        case "withdraw_usdc":
-          await executeWithdrawUSDC(user, ctx, decision);
-          break;
-        case "rebalance":
-          await executeRebalance(user, ctx);
-          break;
-      }
-    } catch (e: any) {
-      await logAction(user.wallet_address, decision.action, {
-        reason: decision.reason, success: false, error: e.message?.slice(0, 200),
-      });
-      console.error(`  ✗ ${user.wallet_address.slice(0,10)}... ${decision.action}:`, e.message?.slice(0, 80));
-    }
+  // Process up to CONCURRENCY users in parallel; chunk to avoid RPC congestion
+  for (let i = 0; i < users.length; i += CONCURRENCY) {
+    const chunk = users.slice(i, i + CONCURRENCY);
+    await Promise.all(chunk.map(u => processUser(u, hfMap).catch(e =>
+      console.error(`  ✗ unhandled for ${u.wallet_address.slice(0,10)}...:`, e.message?.slice(0, 80))
+    )));
   }
 }
 
@@ -1099,6 +1168,7 @@ console.log(`Personal Agent v2 starting... DRY_RUN=${DRY_RUN}`);
 console.log(`Agent ID: #${AGENT_IDS.PERSONAL_AGENT}`);
 console.log(`AgentExecutor: ${ARC_TESTNET_CONTRACTS.AGENT_EXECUTOR}`);
 console.log(`Assets: xUSDC | xEURC | xclrBTC`);
+loadCooldowns();
 
 let blockCount = 0;
 publicClient.watchBlocks({

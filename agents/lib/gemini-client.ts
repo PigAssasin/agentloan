@@ -92,3 +92,31 @@ export async function callLLM(prompt: string): Promise<LLMResponse> {
     throw new Error(`Both LLMs failed. Last error: ${e.message}`);
   }
 }
+
+// Per-user Gemini key — same model/config, different API key.
+// Falls back to server key on any error.
+export async function callLLMWithKey(apiKey: string, prompt: string): Promise<LLMResponse> {
+  try {
+    const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          maxOutputTokens: 600,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Gemini HTTP ${res.status}: ${body.slice(0, 100)}`);
+    }
+    const data = await res.json();
+    return { text: data.candidates[0].content.parts[0].text as string, model: "gemini-2.5-flash(user)" };
+  } catch (e: any) {
+    console.warn(`  [personal] User Gemini key failed (${e.message}), falling back to server key`);
+    return callLLM(prompt);
+  }
+}
