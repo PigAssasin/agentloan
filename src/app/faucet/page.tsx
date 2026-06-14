@@ -32,8 +32,8 @@ const TOKENS = [
     name:      "Arc Testnet BTC",
     address:   ARC_TESTNET_CONTRACTS.X_CLR_BTC,
     decimals:  8,
-    mintAmount: parseUnits("0.1", 8),
-    display:   "0.1",
+    mintAmount: parseUnits("0.01", 8),
+    display:   "0.01",
     desc:      "Testnet bitcoin — primary collateral asset",
   },
 ];
