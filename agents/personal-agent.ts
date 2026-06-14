@@ -541,6 +541,27 @@ async function loadCooldowns() {
   } catch {}
 }
 
+async function getRecentRepayCount(wallet: string, minutes: number): Promise<number> {
+  const url = new URL(`${SB_URL}/rest/v1/agent_actions`);
+  url.searchParams.set("wallet_address", `eq.${wallet}`);
+  url.searchParams.set("action", "in.(repay,emergency_protect)");
+  url.searchParams.set("success", "eq.true");
+  url.searchParams.set("created_at", `gte.${new Date(Date.now() - minutes * 60_000).toISOString()}`);
+  url.searchParams.set("select", "id");
+  const rows = await fetch(url.toString(), { headers: SB_HEADERS }).then(r => r.json()).catch(() => []);
+  return Array.isArray(rows) ? rows.length : 0;
+}
+
+async function pauseUser(wallet: string) {
+  const url = new URL(`${SB_URL}/rest/v1/user_agent_subscriptions`);
+  url.searchParams.set("wallet_address", `eq.${wallet}`);
+  await fetch(url.toString(), {
+    method: "PATCH",
+    headers: SB_HEADERS,
+    body: JSON.stringify({ enabled: false }),
+  }).catch(() => {});
+}
+
 async function logAction(wallet: string, action: string, data: {
   reason: string; amountUsd?: number; hfBefore?: number; hfAfter?: number;
   txHash?: string; success: boolean; error?: string;
@@ -599,6 +620,27 @@ async function executeRepay(user: UserSub, ctx: PortfolioContext, decision: Deci
       hfBefore: hf,
       success: true,
     });
+    return;
+  }
+
+  // 4.1: Circuit breaker — pause after 3+ repays in 60 min with HF still unsafe
+  const recentRepays = await getRecentRepayCount(user.wallet_address, 60);
+  if (recentRepays >= 3) {
+    await pauseUser(user.wallet_address);
+    await logAction(user.wallet_address, "circuit_breaker", {
+      reason: `${recentRepays} repays in 60 min — agent paused to prevent cascade`,
+      hfBefore: hf,
+      success: true,
+    });
+    if (canNotify(user.wallet_address, "circuit_breaker")) {
+      await notifyUser(user.wallet_address,
+        `🛑 <b>Agent paused — circuit breaker triggered</b>\n` +
+        `${recentRepays} repays executed in the last 60 min but HF is still at risk (${hf.toFixed(2)}).\n` +
+        `This may indicate a sharp price drop. Please check your position manually.\n` +
+        `Re-enable agent at agentloan.vercel.app/app`
+      );
+    }
+    console.log(`  [circuit_breaker] ${user.wallet_address.slice(0,10)}... ${recentRepays} repays → paused`);
     return;
   }
 
@@ -1074,6 +1116,19 @@ async function processUser(
 
   // Re-check with fresh ctx data
   const hasIdleAssets = ctx.wallet.xUSDC >= 10 || ctx.wallet.xEURC >= 10 || ctx.wallet.xclrBTC >= 10;
+
+  // 4.2: HF warning — notify before agent fires (cooldown: 2h via NOTIF_COOLDOWN_MS)
+  if (ctx.debtUSD > 0 && ctx.hf >= user.hf_target && ctx.hf < user.hf_target + 0.25) {
+    if (canNotify(user.wallet_address, "hf_warning")) {
+      await notifyUser(user.wallet_address,
+        `⚠️ <b>HF Warning</b>\n` +
+        `Health factor is approaching your target.\n` +
+        `Current: <b>${ctx.hf.toFixed(2)}</b> | Target: ${user.hf_target.toFixed(2)}\n` +
+        `Agent will auto-repay when HF drops below ${user.hf_target.toFixed(2)}.`
+      );
+    }
+  }
+
   if (urgency === 0 && !hasIdleAssets) return;
 
   let decision: Decision;
