@@ -80,6 +80,7 @@ const EXECUTOR_ABI = parseAbi([
 
 const POOL_ABI = parseAbi([
   "function getUserAccountData(address) external view returns (uint256 totalCollateralUSD, uint256 totalRawCollateralUSD, uint256 totalDebtUSD, uint256 availableBorrowsUSD, uint256 healthFactor)",
+  "function getUserAccountDataAccrued(address) external view returns (uint256 totalCollateralUSD, uint256 totalRawCollateralUSD, uint256 totalDebtUSD, uint256 availableBorrowsUSD, uint256 healthFactor)",
   "function agentAuthorized(address,address) external view returns (bool)",
   "function getUserSupplyBalance(address token, address user) external view returns (uint256)",
   "function getUserBorrowBalance(address token, address user) external view returns (uint256)",
