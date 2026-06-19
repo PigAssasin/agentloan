@@ -65,6 +65,15 @@ if (!_pk || !/^0x[0-9a-fA-F]{64}$/.test(_pk)) {
 const deployerAccount = privateKeyToAccount(_pk as `0x${string}`);
 const deployerWallet  = createWalletClient({ account: deployerAccount, chain: arcChain, transport: http() });
 
+// ERC-8004 forbids an agent owner from rating their own agent. Reputation is
+// recorded by a SEPARATE validator wallet. Optional — if VALIDATOR_PRIVATE_KEY
+// is absent, reputation is skipped (never attempted, so no reverting txs).
+const _vpk = process.env.VALIDATOR_PRIVATE_KEY;
+const validatorWallet = _vpk && /^0x[0-9a-fA-F]{64}$/.test(_vpk)
+  ? createWalletClient({ account: privateKeyToAccount(_vpk as `0x${string}`), chain: arcChain, transport: http() })
+  : null;
+if (!validatorWallet) console.warn("[reputation] VALIDATOR_PRIVATE_KEY not set — reputation recording disabled");
+
 const SB_URL     = process.env.SUPABASE_URL!;
 const SB_KEY     = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const SB_HEADERS = { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" };
@@ -640,15 +649,16 @@ async function saveMemory(wallet: string, content: string) {
 }
 
 async function recordReputation(tag: string, score: number) {
-  if (DRY_RUN || !AGENT_IDS.PERSONAL_AGENT) return;
+  // Recorded by the validator wallet, not the agent owner — ERC-8004 reverts on self-rating.
+  if (DRY_RUN || !validatorWallet || !AGENT_IDS.PERSONAL_AGENT) return;
   try {
-    await deployerWallet.writeContract({
+    await validatorWallet.writeContract({
       address: ARC_AGENT_REGISTRY.REPUTATION_REGISTRY, abi: REPUTATION_ABI,
       functionName: "giveFeedback",
       args: [BigInt(AGENT_IDS.PERSONAL_AGENT), BigInt(score), 0, tag, "", "", "", keccak256(toHex(tag))],
     });
-  } catch {
-    // reputation registry occasionally unavailable — safe to ignore
+  } catch (e: any) {
+    console.warn(`  [reputation] skipped: ${e.message?.slice(0, 60)}`);
   }
 }
 

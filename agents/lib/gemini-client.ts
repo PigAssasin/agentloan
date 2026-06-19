@@ -15,25 +15,6 @@ export interface LLMResponse {
   model: string;
 }
 
-// State cache — skip LLM call if positions haven't changed significantly
-let lastStateHash = "";
-let lastCallTime  = 0;
-const MIN_CALL_INTERVAL_MS = 60_000; // minimum 60s between calls
-
-export function shouldCallLLM(stateHash: string): boolean {
-  const now = Date.now();
-  // Skip if same state AND called recently
-  if (stateHash === lastStateHash && now - lastCallTime < MIN_CALL_INTERVAL_MS) {
-    return false;
-  }
-  return true;
-}
-
-export function markCalled(stateHash: string): void {
-  lastStateHash = stateHash;
-  lastCallTime  = Date.now();
-}
-
 async function callGemini(prompt: string): Promise<string> {
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not set");
 

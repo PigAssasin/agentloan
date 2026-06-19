@@ -120,7 +120,7 @@ The agent runs 24/7 and handles your position automatically:
 - **Rebalance alerts** — if one asset is earning significantly more APY than another you're supplying, the agent notifies you on Telegram.
 - **Telegram notifications** — every action is reported to your Telegram.
 
-The agent uses Gemini AI to reason about market conditions every 5 minutes. Between LLM calls it runs a fast rule-based check every ~90 seconds.
+The agent is **LLM-first**: Gemini drives the decision each cycle (5-minute reasoning cooldown per user). A rule-based safety layer then validates every LLM decision, handles emergencies instantly without waiting on the model (HF < 1.05), and keeps watch between LLM calls (~90s). A position below your target is always repaid — that protection never depends on the model.
 
 > This feature is experimental. Approve only amounts you're comfortable with the agent managing.
 
@@ -130,8 +130,10 @@ The agent uses Gemini AI to reason about market conditions every 5 minutes. Betw
 
 ```
 Personal Agent (every ~90s, ERC-8004 #67459)
-  └─ Tier 1: fast HF scan via Multicall3 (18 reads, 1 RPC) every ~90s
-  └─ Tier 2: Gemini AI reasoning with memory context (5-min cooldown)
+  └─ LLM-first: Gemini drives the decision each cycle (5-min cooldown per user)
+  └─ Safety layer: rules validate LLM output, force repay when HF < target,
+       handle emergencies (HF < 1.05) instantly without the LLM
+  └─ Portfolio context via Multicall3 (18 reads, 1 RPC) + 10-row memory
   └─ repayFromWallet / repayTokenFromWallet — repays any debt token
   └─ emergencyProtect — atomic withdraw xUSDC supply + repay
   └─ deployToYield / deployTokenToYield — idle wallet tokens → pool
@@ -139,6 +141,7 @@ Personal Agent (every ~90s, ERC-8004 #67459)
   └─ HF warning alert — Telegram push when HF within 0.25 of target
   └─ Circuit breaker — agent pauses if 3+ repays in 60 min with HF still unsafe
   └─ getUserAccountDataAccrued — accurate HF with accrued interest (no state write)
+  └─ ERC-8004 reputation recorded by a separate validator wallet (no self-rating)
   └─ AgentExecutor v4 at 0x73802EfaB408Ca15208B59FC28aDB84007488606
   └─ Telegram notification after every action (rate-limited, DB-persisted cooldown)
 
@@ -210,6 +213,11 @@ CIRCLE_BOT_ADDRESS=
 # Coordinator Agent LLM (optional — enables AI reasoning)
 GEMINI_API_KEY=         # free at aistudio.google.com
 DEEPSEEK_API_KEY=       # fallback
+
+# Personal Agent reputation (optional — records ERC-8004 feedback)
+# Must be a DIFFERENT wallet than the agent owner: ERC-8004 forbids self-rating.
+# Fund it with a little USDC for gas. If unset, reputation recording is skipped.
+VALIDATOR_PRIVATE_KEY=0x<validator>
 
 # Only needed for contract redeployment
 DEPLOYER_PRIVATE_KEY=0x<deployer>
