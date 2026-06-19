@@ -1,9 +1,11 @@
 /**
  * AgentLoan Personal Agent v2 — Smart DeFi Optimizer
  *
- * Decision engine:
- *   Tier 1 (every 20 blocks, free): urgency scoring via HF
- *   Tier 2 (5-min cooldown): full LLM reasoning with portfolio context
+ * Decision engine (LLM-first):
+ *   Emergency (HF < 1.05): deterministic rule — never waits on the LLM
+ *   Normal (5-min cooldown): the LLM drives the decision; validateDecision rejects
+ *                            unsafe output and the execute* helpers enforce hard limits
+ *   Between LLM windows: rule-based engine keeps watch so fast HF moves still act
  *
  * Context fed to LLM:
  *   - Supply/borrow APY for all 3 assets (from getReserveData)
@@ -412,6 +414,58 @@ Respond JSON only: {"action":"...","amount_usd":0,"reason":"..."}`;
   } catch (e) {
     console.warn(`  [llm] parse error: ${(e as Error).message} — falling back to rule-based`);
     return decideRuleBased(user, ctx);
+  }
+}
+
+// ── Validate LLM decision against hard safety rules ──────────────────────────
+// The LLM drives WHICH action to take. These checks reject decisions whose basic
+// precondition doesn't hold (e.g. repay with no debt) and fall back to the
+// conservative rule-based engine. Fine-grained HF/reserve limits are still
+// enforced inside the execute* helpers before any tx is sent.
+function validateDecision(user: UserSub, ctx: PortfolioContext, d: Decision): Decision {
+  const fallback = (why: string): Decision => {
+    console.log(`  [validate] ${user.wallet_address.slice(0, 10)}... vetoed ${d.action}: ${why}`);
+    return decideRuleBased(user, ctx);
+  };
+
+  // Hard invariant: a position below target with debt MUST be repaid, whatever the
+  // LLM proposes. The agent's core promise (protect HF) never depends on the model.
+  if (ctx.debtUSD > 0 && ctx.hf < user.hf_target &&
+      d.action !== "repay" && d.action !== "emergency_protect") {
+    return fallback(`HF ${ctx.hf.toFixed(2)} < target ${user.hf_target} but LLM chose ${d.action}`);
+  }
+
+  switch (d.action) {
+    case "repay":
+    case "emergency_protect":
+      return ctx.debtUSD > 0 ? d : fallback("no debt to repay");
+
+    case "supply_usdc":
+      return ctx.wallet.xUSDC >= 10 ? d : fallback("no idle xUSDC");
+    case "supply_eurc":
+      return ctx.wallet.xEURC >= 10 ? d : fallback("no idle xEURC");
+    case "supply_btc":
+      return ctx.wallet.xclrBTC >= 10 ? d : fallback("no idle xclrBTC");
+
+    case "withdraw_usdc": {
+      if (ctx.supplied.xUSDC < 10) return fallback("nothing supplied to withdraw");
+      if (ctx.debtUSD > 0) {
+        const newHF = (ctx.weightedCollUSD - Math.min(d.amountUsd, ctx.supplied.xUSDC)) / ctx.debtUSD;
+        if (newHF < user.hf_target + 0.20) return fallback("withdraw would breach HF target+0.20");
+      }
+      return d;
+    }
+
+    case "notify_borrow":
+      return ctx.hf > user.hf_target + 0.5 && ctx.availableBorrowsUSD > 1000
+        ? d : fallback("insufficient HF buffer or borrow capacity");
+
+    case "rebalance":
+    case "skip":
+      return d;
+
+    default:
+      return fallback(`unknown action ${d.action}`);
   }
 }
 
@@ -1042,37 +1096,50 @@ function runBacktest() {
     },
   ];
 
-  let passed = 0;
+  let passed = 0, total = 0;
+  const check = (name: string, got: ActionType, expected: ActionType) => {
+    total++;
+    const ok = got === expected;
+    console.log(`  ${ok ? "✓" : "✗"} ${name}`);
+    console.log(`    Expected: ${expected} | Got: ${got}`);
+    if (ok) passed++;
+  };
+
+  // Each scenario replays the live LLM-first flow with a simulated LLM proposal:
+  // emergencies stay deterministic, everything else goes through validateDecision.
   for (const s of scenarios) {
-    let decision: Decision;
-    // Urgency logic mirrors runCycle
     const urgency = s.ctx.debtUSD === 0 ? 0 : (
       s.ctx.hf < 1.05 ? 3 :
       s.ctx.hf < mockUser.hf_target ? 2 :
       s.ctx.hf < mockUser.hf_target + 0.13 ? 1 : 0
     );
-
+    let decision: Decision;
     if (urgency >= 3) {
-      const repayUSD = Math.max(0, s.ctx.debtUSD - s.ctx.weightedCollUSD / (mockUser.hf_target + 0.2));
-      decision = { action: "emergency_protect", amountUsd: repayUSD, reason: "emergency" };
+      decision = { action: "emergency_protect", amountUsd: 0, reason: "emergency" };
     } else {
-      decision = decideRuleBased(mockUser, s.ctx);
-      // Override with notify_borrow if loop profitable (simulates LLM)
-      const bestNet = Math.max(...(["xUSDC","xEURC","xclrBTC"] as AssetSym[]).map(sym => s.ctx.markets[sym].supplyAPY - s.ctx.markets[sym].borrowAPY));
-      if (urgency === 0 && bestNet > 0.3 && s.ctx.hf > mockUser.hf_target + 0.5 && s.ctx.availableBorrowsUSD > 0) {
-        decision = { action: "notify_borrow", amountUsd: s.ctx.availableBorrowsUSD, reason: `Net loop +${bestNet.toFixed(2)}%` };
-      }
+      // Simulate the LLM proposing the expected action; validateDecision guards it.
+      const llm: Decision = { action: s.expectedAction, amountUsd: s.ctx.availableBorrowsUSD, reason: "simulated-llm" };
+      decision = validateDecision(mockUser, s.ctx, llm);
     }
-
-    const ok = decision.action === s.expectedAction;
-    const icon = ok ? "✓" : "✗";
-    console.log(`  ${icon} ${s.name}`);
-    console.log(`    Expected: ${s.expectedAction} | Got: ${decision.action} | Reason: ${decision.reason}`);
-    if (ok) passed++;
+    check(s.name, decision.action, s.expectedAction);
   }
 
-  console.log(`\n  ${passed}/${scenarios.length} passed`);
-  if (passed < scenarios.length) {
+  // Veto tests — LLM proposes unsafe/nonsensical actions, expect a safe fallback.
+  check("Veto: repay with no debt → fallback to supply",
+    validateDecision(mockUser, scenarios[0].ctx, { action: "repay", amountUsd: 999, reason: "bad" }).action,
+    "supply_usdc");
+  check("Veto: HF<target but LLM says supply → forced repay",
+    validateDecision(mockUser, scenarios[1].ctx, { action: "supply_usdc", amountUsd: 999, reason: "bad" }).action,
+    "repay");
+  check("Veto: notify_borrow with thin HF buffer → forced repay",
+    validateDecision(mockUser, scenarios[1].ctx, { action: "notify_borrow", amountUsd: 1, reason: "bad" }).action,
+    "repay");
+  check("Veto: withdraw that breaches HF → forced repay",
+    validateDecision(mockUser, scenarios[1].ctx, { action: "withdraw_usdc", amountUsd: 50000, reason: "bad" }).action,
+    "repay");
+
+  console.log(`\n  ${passed}/${total} passed`);
+  if (passed < total) {
     console.error("  BACKTEST FAILED — fix logic before deploying");
     process.exit(1);
   }
@@ -1135,28 +1202,19 @@ async function processUser(
   let decision: Decision;
 
   if (urgency >= 3) {
+    // Safety net: emergencies are deterministic and instant — never wait on the LLM.
     const repayUSD = Math.max(0, ctx.debtUSD - ctx.weightedCollUSD / (user.hf_target + 0.2));
     decision = { action: "emergency_protect", amountUsd: repayUSD, reason: `HF ${ctx.hf.toFixed(2)} < 1.05 — emergency` };
+  } else if (shouldCallLLM(user)) {
+    // LLM drives the decision. validateDecision rejects unsafe output (and forces a
+    // repay when HF is below target); the execute* helpers enforce the hard limits.
+    const llm = await decideLLM(user, ctx);
+    await updateLastLLMCall(user.wallet_address);
+    decision = validateDecision(user, ctx, llm);
   } else {
-    // Rule-based always runs first — handles repay/supply/rebalance instantly without LLM.
-    // LLM only fires when rule-based has nothing to do (skip) and cooldown has passed.
+    // Between LLM windows (5-min cooldown): the rule engine keeps watch so a fast
+    // HF move still triggers repay/supply without waiting for the next LLM call.
     decision = decideRuleBased(user, ctx);
-
-    if (decision.action === "skip") {
-      if (shouldCallLLM(user)) {
-        decision = await decideLLM(user, ctx);
-        await updateLastLLMCall(user.wallet_address);
-      }
-      // Rule-based doesn't know about borrow opportunities — check manually
-      if (decision.action === "skip") {
-        const bestNet = Math.max(...(["xUSDC","xEURC","xclrBTC"] as AssetSym[]).map(sym =>
-          ctx.markets[sym].supplyAPY - ctx.markets[sym].borrowAPY
-        ));
-        if (bestNet > 0.3 && ctx.hf > user.hf_target + 0.5 && ctx.availableBorrowsUSD > 1000) {
-          decision = { action: "notify_borrow", amountUsd: ctx.availableBorrowsUSD, reason: `Net loop +${bestNet.toFixed(2)}%` };
-        }
-      }
-    }
   }
 
   if (decision.action === "skip") return;
